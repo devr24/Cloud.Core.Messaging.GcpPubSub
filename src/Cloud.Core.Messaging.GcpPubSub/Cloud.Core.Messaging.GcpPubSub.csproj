@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <Company>Aylesbury Solutions Ltd</Company>
+    <Version>3.1</Version>
+    <Authors>Robert McCabe</Authors>
+    <PackageIconUrl>https://cloud1core.blob.core.windows.net/icons/CC.png</PackageIconUrl>
+    <Copyright>Aylesbury Solutions Ltd</Copyright>
+    <Description>A Google Cloud Platform (GCP) specific implementation of the IMessenger and IReactiveMessenger which connects to PubSub.</Description>
+    <PackageTags>Messaging Messenger PubSub Topic Cloud.Core .net-Core Core aspnetcore</PackageTags>
+    <SignAssembly>false</SignAssembly>
+    <ProjectGuid>{38bfefd3-f861-4f96-9a8b-6e1b2036c7e0}</ProjectGuid>
+    <RepositoryUrl>https://github.com/rmccabe24/Cloud.Core.Messaging.GcpPubSub</RepositoryUrl>
+    <RepositoryType>Private</RepositoryType>
+    <DocumentationFile>Cloud.Core.Messaging.GcpPubSub.xml</DocumentationFile>
+	<PackageReleaseNotes>
+		  Full API Documentation can be found here:
+		  https://cloud1core.blob.core.windows.net/docs/Cloud.Core.Messaging.GcpPubSub/api/index.html
+	</PackageReleaseNotes>
+	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
+	<PackageProjectUrl>https://dev.azure.com/cloudcoreproject/CloudCore/</PackageProjectUrl>
+	<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Cloud.Core" Version="3.1.3697.907" />
+    <PackageReference Include="Google.Cloud.PubSub.V1" Version="2.1.0" />
+    <PackageReference Include="System.Reactive.Core" Version="4.4.1" />
+    <PackageReference Include="System.Reactive.Linq" Version="4.4.1" />
+  </ItemGroup>
+
+</Project>
