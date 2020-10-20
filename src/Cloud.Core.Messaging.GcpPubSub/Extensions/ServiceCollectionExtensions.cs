@@ -1,13 +1,10 @@
-﻿using Cloud.Core.Messaging.GcpPubSub;
-
-namespace Microsoft.Extensions.DependencyInjection
+﻿namespace Microsoft.Extensions.DependencyInjection
 {
     using System;
     using Cloud.Core;
+    using Cloud.Core.Messaging.GcpPubSub;
 
-    /// <summary>
-    /// Class Service Collection extensions.
-    /// </summary>
+    /// <summary>Class Service Collection extensions.</summary>
     public static class ServiceCollectionExtensions
     {
         /// <summary>
@@ -16,17 +13,14 @@ namespace Microsoft.Extensions.DependencyInjection
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="services">Service collection to extend</param>
-        /// <param name="instanceName">Instance name of service bus.</param>
-        /// <param name="tenantId">Tenant Id where service bus exists.</param>
-        /// <param name="subscriptionId">Subscription within the tenancy to use for the service bus instance.</param>
+        /// <param name="projectId">Project Id where PubSub exists.</param>
         /// <param name="receiver">Receiver configuration (if any).</param>
         /// <param name="sender">Sender configuration (if any).</param>
-        /// <param name="enableAutoBackoff">Backoff mechanism enabled (only works when both sender and receiver is configured).</param>
         /// <returns>Modified service collection with the IReactiveMessenger, IMessenger and NamedInstanceFactory{T} configured.</returns>
-        public static IServiceCollection AddGcpPubSub<T>(this IServiceCollection services, string instanceName, string tenantId, string subscriptionId, ReceiverSetup receiver = null, SenderSetup sender = null, bool enableAutoBackoff = false)
+        public static IServiceCollection AddGcpPubSub<T>(this IServiceCollection services, string projectId, ReceiverSetup receiver = null, SenderSetup sender = null)
             where T : IMessageOperations
         {
-            return services.AddGcpPubSubNamed<T>(null, instanceName, tenantId, subscriptionId, receiver, sender, enableAutoBackoff);
+            return services.AddGcpPubSubNamed<T>(null, projectId, receiver, sender);
         }
 
         /// <summary>
@@ -36,55 +30,25 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <typeparam name="T"></typeparam>
         /// <param name="services">Service collection to extend</param>
         /// <param name="key">Key to identify the named instance of the service bus singleton.</param>
-        /// <param name="instanceName">Instance name of service bus.</param>
-        /// <param name="tenantId">Tenant Id where service bus exists.</param>
-        /// <param name="subscriptionId">Subscription within the tenancy to use for the service bus instance.</param>
+        /// <param name="projectId">Project Id where PubSub exists.</param>
         /// <param name="receiver">Receiver configuration (if any).</param>
         /// <param name="sender">Sender configuration (if any).</param>
-        /// <param name="enableAutoBackoff">Backoff mechanism enabled (only works when both sender and receiver is configured).</param>
         /// <returns>Modified service collection with the IReactiveMessenger, IMessenger and NamedInstanceFactory{T} configured.</returns>
-        public static IServiceCollection AddGcpPubSubNamed<T>(this IServiceCollection services, string key, string instanceName, string tenantId, string subscriptionId, ReceiverSetup receiver = null, SenderSetup sender = null, bool enableAutoBackoff = false)
+        public static IServiceCollection AddGcpPubSubNamed<T>(this IServiceCollection services, string key, string projectId, ReceiverSetup receiver = null, SenderSetup sender = null)
             where T : IMessageOperations
         {
-            var serviceBusInstance = new PubSubMessenger(new MsiConfig
-            {
-                InstanceName = instanceName,
-                TenantId = tenantId,
-                SubscriptionId = subscriptionId,
+            var pubSubInstance = new PubSubMessenger(new PubSubConfig { 
+                ProjectId = projectId,
                 Receiver = receiver,
-                Sender = sender,
-                EnableAutobackOff = enableAutoBackoff
+                Sender = sender
             });
 
             if (!key.IsNullOrEmpty())
             {
-                serviceBusInstance.Name = key;
+                pubSubInstance.Name = key;
             }
 
-            services.AddSingleton(typeof(T), serviceBusInstance);
-            services.AddFactoryIfNotAdded<IMessenger>();
-            services.AddFactoryIfNotAdded<IReactiveMessenger>();
-            return services;
-        }
-
-        /// <summary>
-        /// Add service bus singleton of type T, using connection string configuration.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="services">Service collection to extend</param>
-        /// <param name="key">Key to identify the named instance of the service bus singleton.</param>
-        /// <param name="config">The connection string configuration</param>
-        /// <returns>Modified service collection with the IReactiveMessenger, IMessenger and NamedInstanceFactory{T} configured.</returns>
-        public static IServiceCollection AddGcpPubSubNamed<T>(this IServiceCollection services, string key, ConnectionConfig config) where T : IMessageOperations
-        {
-            var serviceBusInstance = new PubSubMessenger(config);
-
-            if (!key.IsNullOrEmpty())
-            {
-                serviceBusInstance.Name = key;
-            }
-
-            services.AddSingleton(typeof(T), serviceBusInstance);
+            services.AddSingleton(typeof(T), pubSubInstance);
             services.AddFactoryIfNotAdded<IMessenger>();
             services.AddFactoryIfNotAdded<IReactiveMessenger>();
             return services;

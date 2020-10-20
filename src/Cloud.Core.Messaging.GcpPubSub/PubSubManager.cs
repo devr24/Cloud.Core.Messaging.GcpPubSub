@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Google.Cloud.PubSub.V1;
+using Grpc.Core;
 
 namespace Cloud.Core.Messaging.GcpPubSub
 {
@@ -20,12 +21,31 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public async Task CreateEntity(IEntityConfig config)
         {
-            var cfg = config as PubsubEntityConfig;
-            await _publisherServiceApiClient.CreateTopicAsync(cfg.EntityName);
-            await _receiverSubscriptionClient.CreateSubscriptionAsync(new Subscription
-            {
-                SubscriptionName = SubscriptionName.Parse(cfg.EntitySubscriptionName)
-            });
+            //TODO: Consolidate to single interface for entity??
+
+
+            //try
+            //{
+            //    var topic = _publisherServiceApiClient.GetTopic(new GetTopicRequest { Topic = config.Sender.TopicRelativeName });
+
+            //}
+            //catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
+            //{
+            //    try
+            //    {
+            //        _publisherServiceApiClient.CreateTopic(config.TopicRelativeName);
+            //    }
+            //    catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
+            //    {
+            //        throw;
+            //    }
+            //}
+
+            
+            //await _receiverSubscriptionClient.CreateSubscriptionAsync(new Subscription
+            //{
+            //    SubscriptionName = SubscriptionName.Parse(config.Receiver.EntitySubscriptionName)
+            //});
         }
 
         public async Task DeleteEntity(string entityName)

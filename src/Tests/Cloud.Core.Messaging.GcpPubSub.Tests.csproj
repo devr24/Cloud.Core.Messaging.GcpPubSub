@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Integration\PubSubManagementTests.cs" />
+    <Compile Remove="Unit\PubSubUnitTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Integration\appSettings.json" />
   </ItemGroup>
 
@@ -45,9 +50,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="appSettings.json">
+    <Folder Include="Unit\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appSettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
+    </None>
   </ItemGroup>
 
 </Project>
