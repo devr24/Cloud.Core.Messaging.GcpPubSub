@@ -36,7 +36,12 @@ namespace Cloud.Core.Messaging.GcpPubSub
         private string _jsonAuthPath;
         private SubscriberClient _receiverClient;
         private SubscriberServiceApiClient _managerClient;
-        private CancellationTokenSource _receiveCancellationToken;
+        private CancellationTokenSource _receiveCancellationToken = new CancellationTokenSource();
+        private PubSubManager _pubSubManager;
+        private readonly GoogleCredential _credential;
+        private bool _createdTopics;
+        private bool _initialisedClients;
+
         private readonly ILogger _logger;
 
         internal readonly ConcurrentDictionary<object, ReceivedMessage> Messages =
@@ -44,12 +49,11 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         internal readonly ISubject<object> MessagesIn = new Subject<object>();
 
-        internal SubscriberServiceApiClient ReceiverServiceClient
+        internal SubscriberServiceApiClient ManagementClient
         {
             get
             {
                 InitialiseClients();
-
                 return _managerClient;
             }
         }
@@ -59,7 +63,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             get
             {
                 InitialiseClients();
-
+                CreateIfNotExists();
                 return _receiverClient;
             }
         }
@@ -69,7 +73,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             get
             {
                 InitialiseClients();
-
+                CreateIfNotExists();
                 return _publisherClient;
             }
         }
@@ -89,6 +93,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
              
             _config = config;
             _logger = logger;
+            _credential = GoogleCredential.GetApplicationDefault();
+
             Name = config.ProjectId;
         }
 
@@ -100,8 +106,9 @@ namespace Cloud.Core.Messaging.GcpPubSub
             _jsonAuthPath = config.JsonAuthFile;
             _config = config;
             _logger = logger;
-            Name = config.ProjectId;
+            _credential = GoogleCredential.FromFile(_jsonAuthPath); 
 
+            Name = config.ProjectId;
         }
 
         /// <summary>
@@ -112,8 +119,10 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public IMessageEntityManager EntityManager
         {
-            get {
-                throw new NotImplementedException();
+            get
+            {
+                InitialiseClients();
+                return _pubSubManager;
             }
         }
 
@@ -251,7 +260,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             if (ackIds.Any())
             {
-                await ReceiverServiceClient.AcknowledgeAsync(new AcknowledgeRequest { AckIds = { ackIds }, Subscription = new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName).ToString() });
+                await ManagementClient.AcknowledgeAsync(new AcknowledgeRequest { AckIds = { ackIds }, Subscription = new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName).ToString() });
             }
         }
 
@@ -302,161 +311,40 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         private void InitialiseClients()
         {
+            if (_initialisedClients) return;
 
-            GoogleCredential credential;
-            if (!_jsonAuthPath.IsNullOrEmpty())
-                credential = GoogleCredential.FromFile(_jsonAuthPath);
-            else
-                credential = GoogleCredential.GetApplicationDefault();
-            
-            if (_managerClient == null)
+            // Get the google credentials.
+            var channelCredentials = _credential.ToChannelCredentials();
+
+            _managerClient ??= new SubscriberServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
+            _publisherClient ??= new PublisherServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
+            _pubSubManager ??= new PubSubManager(_config.ProjectId, _managerClient, _publisherClient);
+            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName),
+                new SubscriberClient.ClientCreationSettings(credentials: channelCredentials)).GetAwaiter().GetResult();
+
+            _initialisedClients = true;
+        }
+
+        private void CreateIfNotExists()
+        {
+            if (_createdTopics)
+                return;
+
+            // Build receiver.
+            if (_config.Receiver != null && _config.Receiver.CreateEntityIfNotExists)
             {
-                _managerClient = new SubscriberServiceApiClientBuilder {
-                    ChannelCredentials = credential.ToChannelCredentials()
-                }.Build();
+                _pubSubManager.CreateTopic(_config.ProjectId, _config.Receiver.EntityName, _config.Receiver.DeadLetterEntityName,
+                    _config.Receiver.EntitySubscriptionName, _config.Receiver.EntityFilter?.Value).GetAwaiter().GetResult();
             }
 
             // Build sender.
-            if (_config.Sender != null)
+            if (_config.Sender != null && _config.Sender.CreateEntityIfNotExists)
             {
-                if (_publisherClient == null)
-                {
-                    _publisherClient = new PublisherServiceApiClientBuilder {
-                        ChannelCredentials = credential.ToChannelCredentials()
-                    }.Build();
-
-                    if (_config.Sender.CreateEntityIfNotExists)
-                    {
-                        CreateTopic(_config.ProjectId, _config.Sender.TopicId, _config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
-                    }
-                }
+                _pubSubManager.CreateTopic(_config.ProjectId, _config.Sender.TopicId, _config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
             }
 
-            // Build receiver.
-            if (_config.Receiver != null) 
-            {
-                if (_receiverClient == null)
-                {
-                    _receiveCancellationToken = new CancellationTokenSource();
-                    _receiverClient = SubscriberClient.CreateAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName), 
-                        new SubscriberClient.ClientCreationSettings(credentials: credential.ToChannelCredentials())).GetAwaiter().GetResult();
-
-                    if (_config.Receiver.CreateEntityIfNotExists)
-                    {
-                        CreateTopic(_config.ProjectId, _config.Receiver.EntityName, _config.Receiver.DeadLetterEntityName,
-                                    _config.Receiver.EntitySubscriptionName, _config.Receiver.EntityFilter?.Value).GetAwaiter().GetResult();
-                    }
-                }
-            }
+            _createdTopics = true;
         }
-
-
-
-        private async Task CreateTopic(string projectId, string topicName, string deadletterName, string subscriptionName = null, string filter = null)
-        {
-            Topic topic;
-            Topic deadletterTopic;
-            // Needs moved to entity manager.
-            try
-            {
-                topic = await _publisherClient.GetTopicAsync(new GetTopicRequest { TopicAsTopicName = new TopicName(projectId, topicName) });
-
-                if (subscriptionName.IsNullOrEmpty())
-                    subscriptionName = $"{topicName}_default";
-
-                deadletterTopic = await _publisherClient.GetTopicAsync(new GetTopicRequest { TopicAsTopicName = new TopicName(projectId, deadletterName) });
-            }
-            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
-            {
-                try
-                {
-                    topic = await _publisherClient.CreateTopicAsync(new TopicName(projectId, topicName));
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
-                {
-                    throw;
-                }
-
-                try
-                {
-                    deadletterTopic = await _publisherClient.CreateTopicAsync(new TopicName(projectId, deadletterName));
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
-                {
-                    throw;
-                }
-            }
-
-            if (subscriptionName.IsNullOrEmpty())
-                return;
-
-            Subscription subscription;
-            try
-            {
-                subscription = await _managerClient.GetSubscriptionAsync(new GetSubscriptionRequest
-                {
-                    SubscriptionAsSubscriptionName = new SubscriptionName(projectId, subscriptionName),
-                });
-
-                if (subscription.Detached)
-                    throw new EntityDisabledException(subscription.Name, "Subscription is detached and therefore disabled for this topic");
-            }
-            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
-            {
-                try
-                {
-                    subscription = await _managerClient.CreateSubscriptionAsync(new Subscription
-                    {
-                        SubscriptionName = new SubscriptionName(projectId, subscriptionName),
-                        Topic = topic.Name,
-                        DeadLetterPolicy = new DeadLetterPolicy
-                        {
-                            MaxDeliveryAttempts = 12,
-                            DeadLetterTopic = deadletterTopic.Name
-                        }
-                    });
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
-                {
-
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
-                {
-                    throw;
-                }
-            }
-
-            try
-            {
-                subscription = await _managerClient.GetSubscriptionAsync(new GetSubscriptionRequest
-                {
-                    SubscriptionAsSubscriptionName = new SubscriptionName(projectId, deadletterName),
-                });
-
-                if (subscription.Detached)
-                    throw new EntityDisabledException(subscription.Name, "Subscription is detached and therefore disabled for this topic");
-            }
-            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
-            {
-                try
-                {
-                    subscription = await _managerClient.CreateSubscriptionAsync(new Subscription
-                    {
-                        SubscriptionName = new SubscriptionName(projectId, $"{deadletterName}_default"),
-                        Topic = deadletterTopic.Name
-                    });
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
-                {
-
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
-                {
-                    throw;
-                }
-            }
-        }
-
 
         internal void ValidateCredentials()
         {
@@ -513,7 +401,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             try
             {
-                PullResponse response = await ReceiverServiceClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName), true, batchSize);
+                PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName), true, batchSize);
 
                 var message = response.ReceivedMessages.FirstOrDefault();
 

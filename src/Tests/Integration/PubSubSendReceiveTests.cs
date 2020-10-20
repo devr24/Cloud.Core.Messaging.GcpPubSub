@@ -1,4 +1,5 @@
-﻿using Cloud.Core.Testing;
+﻿using System.Threading.Tasks;
+using Cloud.Core.Testing;
 using Cloud.Core.Testing.Lorem;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -13,7 +14,6 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
     {
         private readonly ILogger _logger;
         private readonly IConfiguration _config;
-        private bool _stopTimeout;
 
         public PubSubSendReceiveTests()
         {
@@ -45,14 +45,25 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 }
             });
 
+            messager.EntityManager.DeleteEntity(topicName).GetAwaiter().GetResult();
+
             // Act
             messager.Send(lorem).GetAwaiter().GetResult();
-            var message = messager.ReceiveOne<string>();
 
-            messager.Complete(message).GetAwaiter().GetResult();
+            string msg;
+            var maxAttempts = 10;
+
+            do
+            {
+                msg = messager.ReceiveOne<string>();
+
+                Task.Delay(500).GetAwaiter().GetResult();
+            } while (maxAttempts < 10 && msg == null);
+            
+            messager.Complete(msg).GetAwaiter().GetResult();
 
             // Assert
-            message.Should().BeEquivalentTo(lorem);
+            msg.Should().BeEquivalentTo(lorem);
         }
 
 
