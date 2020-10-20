@@ -1,4 +1,7 @@
-﻿namespace Cloud.Core.Messaging.GcpPubSub
+﻿using Google.Apis.Auth.OAuth2;
+using Grpc.Auth;
+
+namespace Cloud.Core.Messaging.GcpPubSub
 {
     using System;
     using System.Collections.Concurrent;
@@ -45,21 +48,7 @@
         {
             get
             {
-                if (_managerClient == null)
-                {
-                    var builder = new SubscriberServiceApiClientBuilder();
-                    if (!_jsonAuthPath.IsNullOrEmpty())
-                        builder.CredentialsPath = _jsonAuthPath;
-
-                    _managerClient = builder.Build();
-
-                    if (_config.Sender.CreateEntityIfNotExists)
-                    {
-                        CreateTopic(_config.ProjectId, _config.Receiver.EntityName, _config.Receiver.DeadLetterEntityName,
-                                _config.Receiver.EntitySubscriptionName, _config.Receiver.EntityFilter?.Value).GetAwaiter()
-                            .GetResult();
-                    }
-                }
+                InitialiseClients();
 
                 return _managerClient;
             }
@@ -69,17 +58,7 @@
         {
             get
             {
-                if (_receiverClient == null)
-                {
-                    if (_config.Receiver == null)
-                        throw new InvalidOperationException("Receiver Entity has not been configured");
-
-                    _receiveCancellationToken = new CancellationTokenSource();
-
-                    var subscriptionName = new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName);
-
-                    _receiverClient = SubscriberClient.CreateAsync(subscriptionName).GetAwaiter().GetResult();
-                }
+                InitialiseClients();
 
                 return _receiverClient;
             }
@@ -89,125 +68,9 @@
         {
             get
             {
-                if (_publisherClient == null)
-                {
-                    var builder = new PublisherServiceApiClientBuilder();
-
-                    if (!_jsonAuthPath.IsNullOrEmpty())
-                        builder.CredentialsPath = _jsonAuthPath;
-
-                    _publisherClient = builder.Build();
-
-                    if (_config.Sender.CreateEntityIfNotExists)
-                        CreateTopic(_config.ProjectId, _config.Sender.TopicId, _config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
-                }
+                InitialiseClients();
 
                 return _publisherClient;
-            }
-        }
-
-        private async Task CreateTopic(string projectId, string topicName, string deadletterName, string subscriptionName = null, string filter = null)
-        {
-            Topic topic;
-            Topic deadletterTopic;
-            // Needs moved to entity manager.
-            try
-            {
-                topic = await _publisherClient.GetTopicAsync(new GetTopicRequest { TopicAsTopicName = new TopicName(projectId, topicName) });
-
-                if (subscriptionName.IsNullOrEmpty())
-                    subscriptionName = $"{topicName}_default";
-
-                deadletterTopic = await _publisherClient.GetTopicAsync(new GetTopicRequest { TopicAsTopicName = new TopicName(projectId, deadletterName) });
-            }
-            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
-            {
-                try
-                {
-                    topic = await _publisherClient.CreateTopicAsync(new TopicName(projectId, topicName));
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
-                {
-                    throw;
-                }
-
-                try
-                {
-                    deadletterTopic = await _publisherClient.CreateTopicAsync(new TopicName(projectId, deadletterName));
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
-                {
-                    throw;
-                }
-            }
-
-            if (subscriptionName.IsNullOrEmpty())
-                return;
-
-            Subscription subscription;
-            try
-            {
-                subscription = await ReceiverServiceClient.GetSubscriptionAsync(new GetSubscriptionRequest
-                {
-                    SubscriptionAsSubscriptionName = new SubscriptionName(projectId, subscriptionName),
-                });
-
-                if (subscription.Detached)
-                    throw new EntityDisabledException(subscription.Name, "Subscription is detached and therefore disabled for this topic");
-            }
-            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
-            {
-                try
-                {
-                    subscription = await ReceiverServiceClient.CreateSubscriptionAsync(new Subscription
-                    {
-                        SubscriptionName = new SubscriptionName(projectId, subscriptionName),
-                        Topic = topic.Name,
-                        DeadLetterPolicy = new DeadLetterPolicy
-                        {
-                            MaxDeliveryAttempts = 12,
-                            DeadLetterTopic = deadletterTopic.Name
-                        }
-                    });
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
-                {
-
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
-                {
-                    throw;
-                }
-            }
-
-            try
-            {
-                subscription = await ReceiverServiceClient.GetSubscriptionAsync(new GetSubscriptionRequest
-                {
-                    SubscriptionAsSubscriptionName = new SubscriptionName(projectId, deadletterName),
-                });
-
-                if (subscription.Detached)
-                    throw new EntityDisabledException(subscription.Name, "Subscription is detached and therefore disabled for this topic");
-            }
-            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
-            {
-                try
-                {
-                    subscription = await ReceiverServiceClient.CreateSubscriptionAsync(new Subscription
-                    {
-                        SubscriptionName = new SubscriptionName(projectId, $"{deadletterName}_default"),
-                        Topic = deadletterTopic.Name
-                    });
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
-                {
-
-                }
-                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
-                {
-                    throw;
-                }
             }
         }
 
@@ -435,6 +298,165 @@
         public void Dispose()
         {
         }
+
+
+        private void InitialiseClients()
+        {
+
+            GoogleCredential credential;
+            if (!_jsonAuthPath.IsNullOrEmpty())
+                credential = GoogleCredential.FromFile(_jsonAuthPath);
+            else
+                credential = GoogleCredential.GetApplicationDefault();
+            
+            if (_managerClient == null)
+            {
+                _managerClient = new SubscriberServiceApiClientBuilder {
+                    ChannelCredentials = credential.ToChannelCredentials()
+                }.Build();
+            }
+
+            // Build sender.
+            if (_config.Sender != null)
+            {
+                if (_publisherClient == null)
+                {
+                    _publisherClient = new PublisherServiceApiClientBuilder {
+                        ChannelCredentials = credential.ToChannelCredentials()
+                    }.Build();
+
+                    if (_config.Sender.CreateEntityIfNotExists)
+                    {
+                        CreateTopic(_config.ProjectId, _config.Sender.TopicId, _config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
+                    }
+                }
+            }
+
+            // Build receiver.
+            if (_config.Receiver != null) 
+            {
+                if (_receiverClient == null)
+                {
+                    _receiveCancellationToken = new CancellationTokenSource();
+                    _receiverClient = SubscriberClient.CreateAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName), 
+                        new SubscriberClient.ClientCreationSettings(credentials: credential.ToChannelCredentials())).GetAwaiter().GetResult();
+
+                    if (_config.Receiver.CreateEntityIfNotExists)
+                    {
+                        CreateTopic(_config.ProjectId, _config.Receiver.EntityName, _config.Receiver.DeadLetterEntityName,
+                                    _config.Receiver.EntitySubscriptionName, _config.Receiver.EntityFilter?.Value).GetAwaiter().GetResult();
+                    }
+                }
+            }
+        }
+
+
+
+        private async Task CreateTopic(string projectId, string topicName, string deadletterName, string subscriptionName = null, string filter = null)
+        {
+            Topic topic;
+            Topic deadletterTopic;
+            // Needs moved to entity manager.
+            try
+            {
+                topic = await _publisherClient.GetTopicAsync(new GetTopicRequest { TopicAsTopicName = new TopicName(projectId, topicName) });
+
+                if (subscriptionName.IsNullOrEmpty())
+                    subscriptionName = $"{topicName}_default";
+
+                deadletterTopic = await _publisherClient.GetTopicAsync(new GetTopicRequest { TopicAsTopicName = new TopicName(projectId, deadletterName) });
+            }
+            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
+            {
+                try
+                {
+                    topic = await _publisherClient.CreateTopicAsync(new TopicName(projectId, topicName));
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
+                {
+                    throw;
+                }
+
+                try
+                {
+                    deadletterTopic = await _publisherClient.CreateTopicAsync(new TopicName(projectId, deadletterName));
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
+                {
+                    throw;
+                }
+            }
+
+            if (subscriptionName.IsNullOrEmpty())
+                return;
+
+            Subscription subscription;
+            try
+            {
+                subscription = await _managerClient.GetSubscriptionAsync(new GetSubscriptionRequest
+                {
+                    SubscriptionAsSubscriptionName = new SubscriptionName(projectId, subscriptionName),
+                });
+
+                if (subscription.Detached)
+                    throw new EntityDisabledException(subscription.Name, "Subscription is detached and therefore disabled for this topic");
+            }
+            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
+            {
+                try
+                {
+                    subscription = await _managerClient.CreateSubscriptionAsync(new Subscription
+                    {
+                        SubscriptionName = new SubscriptionName(projectId, subscriptionName),
+                        Topic = topic.Name,
+                        DeadLetterPolicy = new DeadLetterPolicy
+                        {
+                            MaxDeliveryAttempts = 12,
+                            DeadLetterTopic = deadletterTopic.Name
+                        }
+                    });
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+                {
+
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
+                {
+                    throw;
+                }
+            }
+
+            try
+            {
+                subscription = await _managerClient.GetSubscriptionAsync(new GetSubscriptionRequest
+                {
+                    SubscriptionAsSubscriptionName = new SubscriptionName(projectId, deadletterName),
+                });
+
+                if (subscription.Detached)
+                    throw new EntityDisabledException(subscription.Name, "Subscription is detached and therefore disabled for this topic");
+            }
+            catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
+            {
+                try
+                {
+                    subscription = await _managerClient.CreateSubscriptionAsync(new Subscription
+                    {
+                        SubscriptionName = new SubscriptionName(projectId, $"{deadletterName}_default"),
+                        Topic = deadletterTopic.Name
+                    });
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+                {
+
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
+                {
+                    throw;
+                }
+            }
+        }
+
 
         internal void ValidateCredentials()
         {
