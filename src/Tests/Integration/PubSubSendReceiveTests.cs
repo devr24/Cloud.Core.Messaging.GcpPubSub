@@ -46,7 +46,6 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         }
     }
 
-
     [IsIntegration]
     public class PubSubSendReceiveTests : IClassFixture<PubSubTestsFixture>, IDisposable
     {

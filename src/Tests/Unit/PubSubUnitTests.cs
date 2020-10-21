@@ -79,6 +79,7 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             Assert.Throws<ValidateException>(() => config.ThrowIfInvalid());
             config.ProjectId = "test";
             AssertExtensions.DoesNotThrow(() => config.ThrowIfInvalid());
+            config.ToString().Contains("SenderInfo: [NOT SET]").Should().BeTrue();
 
             // Assert on the sender config validity.
             config.Sender = new SenderConfig();
@@ -89,6 +90,7 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             Assert.Throws<ValidateException>(() => config.ThrowIfInvalid());
             config.ProjectId = "test";
             AssertExtensions.DoesNotThrow(() => config.ThrowIfInvalid());
+            config.ToString().Contains("SenderInfo: [NOT SET]").Should().BeFalse();
 
             // Assert on the receiverConfig config validity.
             config.ReceiverConfig = new ReceiverConfig();
@@ -99,8 +101,10 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             Assert.Throws<ValidateException>(() => config.ThrowIfInvalid());
             config.ProjectId = "test";
             AssertExtensions.DoesNotThrow(() => config.ThrowIfInvalid());
+            config.ToString().Contains("ReceiverInfo: [NOT SET]").Should().BeFalse();
         }
 
+        /// <summary>Confirm receiver is setup as expected.</summary>
         [Fact]
         public void Test_ReceiverConfig_Setup()
         {
@@ -109,7 +113,7 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             {
                 EntityName = "entityName",
                 EntitySubscriptionName = "test",
-                ReadFromErrorEntity = false,
+                ReadFromErrorEntity = true,
                 CreateEntityIfNotExists = false,
                 EntityFilter = new KeyValuePair<string, string>("key","value"),
                 ProjectId = "projId"
@@ -121,8 +125,10 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             receiver.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
             receiver.ToString().Length.Should().BeGreaterThan(0);
             receiver.ProjectId.Should().Be("projId");
+            receiver.ReadFromErrorEntity.Should().BeTrue();
         }
 
+        /// <summary>Confirm sender is setup as expected.</summary>
         [Fact]
         public void Test_SenderConfig_Setup()
         {
@@ -141,16 +147,7 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             sender.ToString().Length.Should().BeGreaterThan(0);
             sender.ProjectId.Should().Be("projId");
         }
-
-        [Fact]
-        public void Test_PubSub_SenderSetup() { }
-
-        private class TestClass
-        {
-            public string Property1 { get; set; }
-        }
-
-
+        
         /// <summary>Check the add service collection extension configures as expected.</summary>
         [Fact]
         public void Test_ServiceBusMessenger_ServiceCollectionAddSingleton()
@@ -197,6 +194,11 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             serviceCollection.AddPubSubSingleton<IReactiveMessenger>(new PubSubJsonAuthConfig { ProjectId = "test", JsonAuthFile = "test" });
             serviceCollection.ContainsService(typeof(IReactiveMessenger)).Should().BeTrue();
             serviceCollection.Clear();
+        }
+
+        private class TestClass
+        {
+            public string Property1 { get; set; }
         }
     }
 }
