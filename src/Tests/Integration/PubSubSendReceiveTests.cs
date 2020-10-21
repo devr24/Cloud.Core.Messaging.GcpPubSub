@@ -68,12 +68,12 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Act
             _fixture.Messenger.Send(lorem).GetAwaiter().GetResult();
 
-            string msg = _fixture.Messenger.ReceiveOne<string>();
+            var msg = _fixture.Messenger.ReceiveOneEntity<string>();
 
             _fixture.Messenger.Complete(msg).GetAwaiter().GetResult();
 
             // Assert
-            msg.Should().BeEquivalentTo(lorem);
+            msg.Body.Should().BeEquivalentTo(lorem);
         }
 
         public void Dispose()

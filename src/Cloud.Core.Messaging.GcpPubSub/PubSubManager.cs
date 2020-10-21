@@ -87,7 +87,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             return false;
         }
 
-        public async Task CreateEntity(IEntityConfig config)
+        public async Task CreateEntity(string entityName)
         {
             //TODO: Consolidate to single interface for entity??
 

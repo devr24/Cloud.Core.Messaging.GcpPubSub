@@ -1,5 +1,4 @@
-﻿using Google.Apis.Auth.OAuth2;
-using Grpc.Auth;
+﻿using Cloud.Core.Extensions;
 
 namespace Cloud.Core.Messaging.GcpPubSub
 {
@@ -14,7 +13,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
     using System.Reactive.Subjects;
     using System.Threading;
     using System.Threading.Tasks;
-    using Exceptions;
+    using Google.Apis.Auth.OAuth2;
+    using Grpc.Auth;
     using Comparer;
     using Google.Cloud.PubSub.V1;
     using Google.Protobuf;
@@ -31,23 +31,19 @@ namespace Cloud.Core.Messaging.GcpPubSub
     /// <seealso cref="IReactiveMessenger" />
     public class PubSubMessenger : IMessenger, IReactiveMessenger
     {
+        private readonly ConcurrentDictionary<object, ReceivedMessage> _messages = new ConcurrentDictionary<object, ReceivedMessage>(ObjectReferenceEqualityComparer<object>.Default);
+        private readonly ISubject<object> _messagesIn = new Subject<object>();
+        private readonly CancellationTokenSource _receiveCancellationToken = new CancellationTokenSource();
         private readonly PubSubConfig _config;
+        private readonly ILogger _logger;
+        private readonly GoogleCredential _credential;
+
         private PublisherServiceApiClient _publisherClient;
-        private string _jsonAuthPath;
         private SubscriberClient _receiverClient;
         private SubscriberServiceApiClient _managerClient;
-        private CancellationTokenSource _receiveCancellationToken = new CancellationTokenSource();
         private PubSubManager _pubSubManager;
-        private readonly GoogleCredential _credential;
         private bool _createdTopics;
         private bool _initialisedClients;
-
-        private readonly ILogger _logger;
-
-        internal readonly ConcurrentDictionary<object, ReceivedMessage> Messages =
-            new ConcurrentDictionary<object, ReceivedMessage>(ObjectReferenceEqualityComparer<object>.Default);
-
-        internal readonly ISubject<object> MessagesIn = new Subject<object>();
 
         internal SubscriberServiceApiClient ManagementClient
         {
@@ -98,15 +94,19 @@ namespace Cloud.Core.Messaging.GcpPubSub
             Name = config.ProjectId;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PubSubMessenger"/> class.
+        /// </summary>
+        /// <param name="config">The configuration.</param>
+        /// <param name="logger">The logger.</param>
         public PubSubMessenger([NotNull] JsonAuthConfig config, ILogger logger = null)
         {
             // Validate configuration.
             config.ThrowIfInvalid();
 
-            _jsonAuthPath = config.JsonAuthFile;
             _config = config;
             _logger = logger;
-            _credential = GoogleCredential.FromFile(_jsonAuthPath); 
+            _credential = GoogleCredential.FromFile(config.JsonAuthFile);
 
             Name = config.ProjectId;
         }
@@ -205,7 +205,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public IObservable<T> StartReceive<T>(int batchSize = 10) where T : class
         {
-            IObserver<T> messageIn = MessagesIn.AsObserver();
+            IObserver<T> messageIn = _messagesIn.AsObserver();
 
             ReceiverClient.StartAsync((message, cancel) =>
             {
@@ -218,7 +218,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
                 return Task.FromResult(SubscriberClient.Reply.Nack);
             });
 
-            return MessagesIn.OfType<T>();
+            return _messagesIn.OfType<T>();
         }
 
         public void CancelReceive<T>() where T : class
@@ -227,8 +227,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             ReceiverClient.StopAsync(_receiveCancellationToken.Token);
         }
 
-        public Task UpdateReceiver(string entityName, string entitySubscriptionName = null, bool createIfNotExists = false,
-            KeyValuePair<string, string>? entityFilter = null, string entityDeadLetterName = null)
+        public Task UpdateReceiver(string entityName, string entitySubscriptionName = null, KeyValuePair<string, string>? entityFilter = null)
         {
             _config.Receiver.EntityName= entityName;
             _config.Receiver.EntitySubscriptionName = entitySubscriptionName;
@@ -245,7 +244,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             var entityMessage = message as IMessageEntity<T>;
             T msg = entityMessage == null ? message : entityMessage.Body;
 
-            return ReadProperties(Messages[msg]?.Message);
+            return ReadProperties(_messages[msg]?.Message);
         }
 
         public async Task Complete<T>(T message) where T : class
@@ -259,11 +258,17 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             foreach (var message in messages)
             {
-                var entityMessage = message as IMessageEntity<T>;
-                T msg = entityMessage == null ? message : entityMessage.Body;
-                if (msg != null && Messages.TryGetValue(msg, out var foundMsg))
+                if (_messages.TryRemove(message, out var foundMsg))
                 {
                     ackIds.Add(foundMsg.AckId);
+                }
+                else
+                {
+                    var body = message.GetPropertyValueByName("body");
+                    if (body != null && _messages.TryRemove(body, out foundMsg))
+                    {
+                        ackIds.Add(foundMsg.AckId);
+                    }
                 }
             }
 
@@ -277,7 +282,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
         {
             var entityMessage = message as IMessageEntity<T>;
             T msg = entityMessage == null ? message : entityMessage.Body;
-            return Task.FromResult(Messages.TryRemove(msg, out _));
+            return Task.FromResult(_messages.TryRemove(msg, out _));
         }
 
         public async Task Error<T>(T message, string reason = null) where T : class
@@ -420,7 +425,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
                 var typedContent = GetTypedMessageContent<T>(message.Message);
 
-                Messages.TryAdd(typedContent, message);
+                _messages.TryAdd(typedContent, message);
 
                 var props = ReadProperties(message.Message);
 

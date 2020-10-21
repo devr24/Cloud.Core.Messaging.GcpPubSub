@@ -18,7 +18,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
     /// Implements the <see cref="AttributeValidator" />
     /// </summary>
     /// <seealso cref="AttributeValidator" />
-    public class ReceiverSetup : AttributeValidator, IEntityConfig
+    public class ReceiverSetup : AttributeValidator
     {
         private string _entityName;
 
