@@ -51,25 +51,53 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             config.EntitySubscriptionName.Should().Be($"entitySubName");
         }
 
+        /// <summary>Verify the validation when json auth file path is not set.</summary>
         [Fact]
         public void Test_JsonAuthConfig_Validate()
         {
             // Arrange
-            var invalidConfig = new JsonAuthConfig();
+            var invalidConfig1 = new JsonAuthConfig();
+            var invalidConfig2 = new JsonAuthConfig { ProjectId = "test" };
             var validConfig = new JsonAuthConfig { ProjectId = "test", JsonAuthFile = "test" };
-
-            // Act
             
-
-            // Assert
-            Assert.Throws<ValidateException>(() => invalidConfig.ThrowIfInvalid());
+            // Act/Assert
+            Assert.Throws<ValidateException>(() => invalidConfig1.ThrowIfInvalid());
+            Assert.Throws<ValidateException>(() => invalidConfig2.ThrowIfInvalid());
             AssertExtensions.DoesNotThrow(() => validConfig.ThrowIfInvalid());
         }
 
+        /// <summary>Verify validation is carried out in the expected manor.</summary>
         [Fact]
         public void Test_PubSubConfig_Validate()
         {
+            // Arrange
+            var config = new PubSubConfig();
 
+            // Act and Assert - overlap here as it was an easier approach for this use-case.
+            // Top level validation.
+            Assert.Throws<ValidateException>(() => config.ThrowIfInvalid());
+            config.ProjectId = "test";
+            AssertExtensions.DoesNotThrow(() => config.ThrowIfInvalid());
+
+            // Assert on the sender config validity.
+            config.Sender = new SenderSetup();
+            Assert.Throws<ValidateException>(() => config.ThrowIfInvalid());
+            config.Sender.TopicId = "test";
+            AssertExtensions.DoesNotThrow(() => config.ThrowIfInvalid());
+            config.ProjectId = null;
+            Assert.Throws<ValidateException>(() => config.ThrowIfInvalid());
+            config.ProjectId = "test";
+            AssertExtensions.DoesNotThrow(() => config.ThrowIfInvalid());
+
+            // Assert on the receiver config validity.
+            config.Receiver = new ReceiverSetup();
+            Assert.Throws<ValidateException>(() => config.ThrowIfInvalid());
+            config.Receiver.EntityName = "test";
+            AssertExtensions.DoesNotThrow(() => config.ThrowIfInvalid());
+            config.ProjectId = null;
+            Assert.Throws<ValidateException>(() => config.ThrowIfInvalid());
+            config.ProjectId = "test";
+            AssertExtensions.DoesNotThrow(() => config.ThrowIfInvalid());
         }
 
 

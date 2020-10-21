@@ -128,13 +128,23 @@
     /// <seealso cref="AttributeValidator" />
     public class PubSubConfig : AttributeValidator
     {
+        private string _projectId;
         private ReceiverSetup _receiver;
         private SenderSetup _sender;
 
         /// <summary>Gets or sets the project identifier.</summary>
         /// <value>The project identifier.</value>
         [Required]
-        public string ProjectId { get; set; }
+        public string ProjectId { get => _projectId;
+            set
+            {
+                _projectId = value;
+                if (_receiver != null)
+                    _receiver.ProjectId = _projectId;
+                if (_sender != null)
+                    _sender.ProjectId = _projectId;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the receiver configuration.
@@ -151,7 +161,8 @@
             set
             {
                 _receiver = value;
-                _receiver.ProjectId = ProjectId;
+                if (_receiver != null)
+                    _receiver.ProjectId = ProjectId;
             }
         }
 
@@ -170,7 +181,8 @@
             set
             {
                 _sender = value;
-                _sender.ProjectId = ProjectId;
+                if (_sender != null)
+                    _sender.ProjectId = ProjectId;
             }
         }
 
