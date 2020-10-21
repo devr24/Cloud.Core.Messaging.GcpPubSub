@@ -49,6 +49,7 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             config.DeadLetterEntityName.Should().Be($"entityName_deadletter");
             config.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
             config.ToString().Length.Should().BeGreaterThan(0);
+            config.ProjectId.Should().Be("projId");
         }
 
         /// <summary>Verify the validation when json auth file path is not set.</summary>
@@ -119,13 +120,14 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             receiver.DeadLetterEntityName.Should().Be($"entityName_deadletter");
             receiver.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
             receiver.ToString().Length.Should().BeGreaterThan(0);
+            receiver.ProjectId.Should().Be("projId");
         }
 
         [Fact]
         public void Test_SenderConfig_Setup()
         {
             // Arrange
-            var receiver = new SenderConfig
+            var sender = new SenderConfig
             {
                 EntityName = "entityName",
                 CreateEntityIfNotExists = false,
@@ -133,10 +135,11 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             };
 
             // Assert
-            receiver.TopicRelativeName.Should().Be($"projects/projId/topics/entityName");
-            receiver.DeadLetterEntityName.Should().Be($"entityName_deadletter");
-            receiver.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
-            receiver.ToString().Length.Should().BeGreaterThan(0);
+            sender.TopicRelativeName.Should().Be($"projects/projId/topics/entityName");
+            sender.DeadLetterEntityName.Should().Be($"entityName_deadletter");
+            sender.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
+            sender.ToString().Length.Should().BeGreaterThan(0);
+            sender.ProjectId.Should().Be("projId");
         }
 
         [Fact]
