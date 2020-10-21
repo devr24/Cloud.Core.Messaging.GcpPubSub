@@ -25,15 +25,5 @@
         {
             return Properties.ToObject<O>();
         }
-
-        /// <summary>
-        /// Performs an implicit conversion from type T to <see cref="PubSubEntity{T}" />.
-        /// </summary>
-        /// <param name="obj">The object.</param>
-        /// <returns>The result of the conversion.</returns>
-        public static implicit operator PubSubEntity<T>(T obj)
-        {
-            return new PubSubEntity<T> { Body = obj };
-        }
     }
 }

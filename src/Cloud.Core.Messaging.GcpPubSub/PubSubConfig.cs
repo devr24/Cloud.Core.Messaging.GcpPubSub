@@ -1,17 +1,10 @@
-﻿using Google.Cloud.PubSub.V1;
-
-namespace Cloud.Core.Messaging.GcpPubSub
+﻿namespace Cloud.Core.Messaging.GcpPubSub
 {
     using System;
     using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations;
     using Validation;
-
-    public class JsonAuthConfig : PubSubConfig
-    {
-        [Required]
-        public string JsonAuthFile { get; set; }
-    }
+    using Google.Cloud.PubSub.V1;
 
     public class PubSubEntityConfig : IMessageEntityConfig
     {
@@ -19,6 +12,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
         public string EntityName { get; set; }
         public string EntitySubscriptionName { get; set; }
         public string TopicRelativeName => $"projects/{ProjectId}/topics/{EntityName}";
+        public string TopicDeadletterRelativeName => $"projects/{ProjectId}/topics/{DeadLetterEntityName}";
         public string DeadLetterEntityName => $"{EntityName}_deadletter";
     }
 
@@ -119,6 +113,12 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         /// <summary>Gets the full relative name of the topic in GCP pub sub.</summary>
         public string TopicRelativeName => new TopicName(ProjectId, TopicId).ToString();
+    }
+
+    public class JsonAuthConfig : PubSubConfig
+    {
+        [Required]
+        public string JsonAuthFile { get; set; }
     }
 
     /// <summary>

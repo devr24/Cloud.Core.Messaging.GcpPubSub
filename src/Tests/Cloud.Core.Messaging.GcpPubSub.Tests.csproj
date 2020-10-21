@@ -11,7 +11,6 @@
 
   <ItemGroup>
     <Compile Remove="Integration\PubSubManagementTests.cs" />
-    <Compile Remove="Unit\PubSubUnitTests.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -47,10 +46,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Cloud.Core.Messaging.GcpPubSub\Cloud.Core.Messaging.GcpPubSub.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Unit\" />
   </ItemGroup>
 
   <ItemGroup>
