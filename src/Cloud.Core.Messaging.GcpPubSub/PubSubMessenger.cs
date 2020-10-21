@@ -36,7 +36,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
         private readonly CancellationTokenSource _receiveCancellationToken = new CancellationTokenSource();
         private readonly PubSubConfig _config;
         private readonly ILogger _logger;
-        private readonly GoogleCredential _credential;
+        private readonly string _jsonAuthFile;
 
         private PublisherServiceApiClient _publisherClient;
         private SubscriberClient _receiverClient;
@@ -81,15 +81,11 @@ namespace Cloud.Core.Messaging.GcpPubSub
         /// <param name="logger">The logger.</param>
         public PubSubMessenger([NotNull]PubSubConfig config, ILogger logger = null)
         {
-            // Verify the credentials have been set as expected.
-            ValidateCredentials();
-
             // Validate configuration.
             config.ThrowIfInvalid();
              
             _config = config;
             _logger = logger;
-            _credential = GoogleCredential.GetApplicationDefault();
 
             Name = config.ProjectId;
         }
@@ -99,14 +95,14 @@ namespace Cloud.Core.Messaging.GcpPubSub
         /// </summary>
         /// <param name="config">The configuration.</param>
         /// <param name="logger">The logger.</param>
-        public PubSubMessenger([NotNull] JsonAuthConfig config, ILogger logger = null)
+        public PubSubMessenger([NotNull] PubSubJsonAuthConfig config, ILogger logger = null)
         {
             // Validate configuration.
             config.ThrowIfInvalid();
 
             _config = config;
             _logger = logger;
-            _credential = GoogleCredential.FromFile(config.JsonAuthFile);
+            _jsonAuthFile = config.JsonAuthFile;
 
             Name = config.ProjectId;
         }
@@ -229,8 +225,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public Task UpdateReceiver(string entityName, string entitySubscriptionName = null, KeyValuePair<string, string>? entityFilter = null)
         {
-            _config.Receiver.EntityName= entityName;
-            _config.Receiver.EntitySubscriptionName = entitySubscriptionName;
+            _config.ReceiverConfig.EntityName= entityName;
+            _config.ReceiverConfig.EntitySubscriptionName = entitySubscriptionName;
 
             _receiveCancellationToken.Cancel();
             _receiverClient.StopAsync(_receiveCancellationToken.Token);
@@ -274,7 +270,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             if (ackIds.Any())
             {
-                await ManagementClient.AcknowledgeAsync(new AcknowledgeRequest { AckIds = { ackIds }, Subscription = new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName).ToString() });
+                await ManagementClient.AcknowledgeAsync(new AcknowledgeRequest { AckIds = { ackIds }, Subscription = new SubscriptionName(_config.ProjectId, _config.ReceiverConfig.EntitySubscriptionName).ToString() });
             }
         }
 
@@ -295,7 +291,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             // Complete the message, then send on to dead-letter queue.
             await CompleteAll(new[] { msg });
-            await InternalSendBatch(_config.Receiver.DeadLetterTopicRelativeName, new List<T> { msg }, props.ToArray(), null, 100);
+            await InternalSendBatch(_config.ReceiverConfig.TopicDeadletterRelativeName, new List<T> { msg }, props.ToArray(), null, 100);
         }
 
         public string GetSignedAccessUrl(ISignedAccessConfig accessConfig)
@@ -328,12 +324,12 @@ namespace Cloud.Core.Messaging.GcpPubSub
             if (_initialisedClients) return;
 
             // Get the google credentials.
-            var channelCredentials = _credential.ToChannelCredentials();
+            ChannelCredentials channelCredentials = GetCredentials();
 
             _managerClient ??= new SubscriberServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
             _publisherClient ??= new PublisherServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
             _pubSubManager ??= new PubSubManager(_config.ProjectId, _managerClient, _publisherClient);
-            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName),
+            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(_config.ProjectId, _config.ReceiverConfig.EntitySubscriptionName),
                 new SubscriberClient.ClientCreationSettings(credentials: channelCredentials)).GetAwaiter().GetResult();
 
             _initialisedClients = true;
@@ -344,29 +340,43 @@ namespace Cloud.Core.Messaging.GcpPubSub
             if (_createdTopics)
                 return;
 
-            // Build receiver.
-            if (_config.Receiver != null && _config.Receiver.CreateEntityIfNotExists)
+            // Build receiverConfig.
+            if (_config.ReceiverConfig != null && _config.ReceiverConfig.CreateEntityIfNotExists)
             {
-                _pubSubManager.CreateTopic(_config.ProjectId, _config.Receiver.EntityName, _config.Receiver.DeadLetterEntityName,
-                    _config.Receiver.EntitySubscriptionName, _config.Receiver.EntityFilter?.Value).GetAwaiter().GetResult();
+                _pubSubManager.CreateTopic(_config.ProjectId, _config.ReceiverConfig.EntityName, _config.ReceiverConfig.DeadLetterEntityName,
+                    _config.ReceiverConfig.EntitySubscriptionName, _config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
             }
 
             // Build sender.
             if (_config.Sender != null && _config.Sender.CreateEntityIfNotExists)
             {
-                _pubSubManager.CreateTopic(_config.ProjectId, _config.Sender.TopicId, _config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
+                _pubSubManager.CreateTopic(_config.ProjectId, _config.Sender.EntityName, _config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
             }
 
             _createdTopics = true;
         }
 
-        internal void ValidateCredentials()
+        internal ChannelCredentials GetCredentials()
         {
-            var credentialLocation = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
-            if (credentialLocation.IsNullOrEmpty() || File.Exists(credentialLocation) == false)
+            ChannelCredentials channelCredentials = null;
+
+            if (_jsonAuthFile.IsNullOrEmpty())
             {
-                throw new InvalidOperationException("Environment variable \"GOOGLE_APPLICATION_CREDENTIALS\" must exist and must point to a valid credential json file");
+                channelCredentials = GoogleCredential.FromFile(_jsonAuthFile).ToChannelCredentials();
             }
+            else
+            {
+                // Verify the credentials have been set as expected.
+                var credentialLocation = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+                if (credentialLocation.IsNullOrEmpty() || File.Exists(credentialLocation) == false)
+                {
+                    throw new InvalidOperationException("Environment variable \"GOOGLE_APPLICATION_CREDENTIALS\" must exist and must point to a valid credential json file");
+                }
+
+                channelCredentials = GoogleCredential.GetApplicationDefault().ToChannelCredentials();
+            }
+
+            return channelCredentials;
         }
 
         internal async Task InternalSendBatch<T>(string topic, IEnumerable<T> messages, KeyValuePair<string, object>[] properties, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize) where T : class
@@ -417,7 +427,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             try
             {
-                PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName), false, batchSize);
+                PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.ReceiverConfig.EntitySubscriptionName), false, batchSize);
                 var message = response.ReceivedMessages.FirstOrDefault();
 
                 if (message == null)

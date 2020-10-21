@@ -8,40 +8,41 @@
     public static class ServiceCollectionExtensions
     {
         /// <summary>
-        /// Add service bus singleton of type T, using named properties (as opposed to passing MsiConfig/ServicePrincipleConfig etc).
-        /// Will automatically use MsiConfiguration.
+        /// Add instance of Gcp PubSub, with PubSubConfig, to the service collection with the NamedInstance factory.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="services">Service collection to extend</param>
-        /// <param name="projectId">Project Id where PubSub exists.</param>
-        /// <param name="receiver">Receiver configuration (if any).</param>
-        /// <param name="sender">Sender configuration (if any).</param>
+        /// <param name="key">Key to identify the named instance of the PubSub singleton.</param>
+        /// <param name="config">Configuration</param>
         /// <returns>Modified service collection with the IReactiveMessenger, IMessenger and NamedInstanceFactory{T} configured.</returns>
-        public static IServiceCollection AddGcpPubSub<T>(this IServiceCollection services, string projectId, ReceiverSetup receiver = null, SenderSetup sender = null)
+        public static IServiceCollection AddPubSubSingletonNamed<T>(this IServiceCollection services, string key, PubSubConfig config)
             where T : IMessageOperations
         {
-            return services.AddGcpPubSubNamed<T>(null, projectId, receiver, sender);
+            var pubSubInstance = new PubSubMessenger(config);
+
+            if (!key.IsNullOrEmpty())
+            {
+                pubSubInstance.Name = key;
+            }
+
+            services.AddSingleton(typeof(T), pubSubInstance);
+            services.AddFactoryIfNotAdded<IMessenger>();
+            services.AddFactoryIfNotAdded<IReactiveMessenger>();
+            return services;
         }
 
         /// <summary>
-        /// Add service bus singleton of type T, using named properties (as opposed to passing MsiConfig/ServicePrincipleConfig etc).
-        /// Will automatically use MsiConfiguration.
+        /// Add instance of Gcp PubSub, with JsonAuth config, to the service collection with the NamedInstance factory.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="services">Service collection to extend</param>
-        /// <param name="key">Key to identify the named instance of the service bus singleton.</param>
-        /// <param name="projectId">Project Id where PubSub exists.</param>
-        /// <param name="receiver">Receiver configuration (if any).</param>
-        /// <param name="sender">Sender configuration (if any).</param>
+        /// <param name="key">Key to identify the named instance of the PubSub singleton.</param>
+        /// <param name="config">Configuration</param>
         /// <returns>Modified service collection with the IReactiveMessenger, IMessenger and NamedInstanceFactory{T} configured.</returns>
-        public static IServiceCollection AddGcpPubSubNamed<T>(this IServiceCollection services, string key, string projectId, ReceiverSetup receiver = null, SenderSetup sender = null)
+        public static IServiceCollection AddPubSubSingletonNamed<T>(this IServiceCollection services, string key, PubSubJsonAuthConfig config)
             where T : IMessageOperations
         {
-            var pubSubInstance = new PubSubMessenger(new PubSubConfig { 
-                ProjectId = projectId,
-                Receiver = receiver,
-                Sender = sender
-            });
+            var pubSubInstance = new PubSubMessenger(config);
 
             if (!key.IsNullOrEmpty())
             {
@@ -62,14 +63,23 @@
         /// <param name="config">The configuration.</param>
         /// <returns>ServiceCollection.</returns>
         /// <exception cref="InvalidOperationException">Problem occurred while configuring Service Bus Manager Identify config</exception>
-        public static IServiceCollection AddGcpPubSub<T>(this IServiceCollection services, PubSubConfig config)
+        public static IServiceCollection AddPubSubSingleton<T>(this IServiceCollection services, PubSubConfig config)
             where T : IMessageOperations
         {
-            var serviceBusInstance = new PubSubMessenger(config);
-            services.AddSingleton(typeof(T), serviceBusInstance);
-            services.AddFactoryIfNotAdded<IMessenger>();
-            services.AddFactoryIfNotAdded<IReactiveMessenger>();
-            return services;
+            return services.AddPubSubSingletonNamed<T>(null, config);
+        }
+        /// <summary>
+        /// Adds the service bus singleton.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="services">The services.</param>
+        /// <param name="config">The json auth configuration.</param>
+        /// <returns>ServiceCollection.</returns>
+        /// <exception cref="InvalidOperationException">Problem occurred while configuring Service Bus Manager Identify config</exception>
+        public static IServiceCollection AddPubSubSingleton<T>(this IServiceCollection services, PubSubJsonAuthConfig config)
+            where T : IMessageOperations
+        {
+            return services.AddPubSubSingletonNamed<T>(null, config);
         }
     }
 }

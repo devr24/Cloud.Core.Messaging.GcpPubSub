@@ -112,7 +112,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             //await _receiverSubscriptionClient.CreateSubscriptionAsync(new Subscription
             //{
-            //    SubscriptionName = SubscriptionName.Parse(config.Receiver.EntitySubscriptionName)
+            //    SubscriptionName = SubscriptionName.Parse(config.ReceiverConfig.EntitySubscriptionName)
             //});
         }
 

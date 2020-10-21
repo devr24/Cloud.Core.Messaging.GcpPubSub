@@ -4,15 +4,43 @@
     using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations;
     using Validation;
-    using Google.Cloud.PubSub.V1;
 
-    public class PubSubEntityConfig : IMessageEntityConfig
+    /// <summary>
+    /// Class PubSubEntityConfig.
+    /// Implements the <see cref="AttributeValidator" />
+    /// </summary>
+    /// <seealso cref="AttributeValidator" />
+    public class PubSubEntityConfig : AttributeValidator
     {
+        /// <summary>
+        /// Gets or sets the project identifier.
+        /// </summary>
+        /// <value>The project identifier.</value>
         public string ProjectId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the name of the entity.
+        /// </summary>
+        /// <value>The name of the entity.</value>
+        [Required]
         public string EntityName { get; set; }
-        public string EntitySubscriptionName { get; set; }
+
+        /// <summary>
+        /// Gets the name of the topic relative.
+        /// </summary>
+        /// <value>The name of the topic relative.</value>
         public string TopicRelativeName => $"projects/{ProjectId}/topics/{EntityName}";
+
+        /// <summary>
+        /// Gets the name of the topic dead-letter relative.
+        /// </summary>
+        /// <value>The name of the topic dead-letter relative.</value>
         public string TopicDeadletterRelativeName => $"projects/{ProjectId}/topics/{DeadLetterEntityName}";
+
+        /// <summary>
+        /// Gets the name of the dead letter entity.
+        /// </summary>
+        /// <value>The name of the dead letter entity.</value>
         public string DeadLetterEntityName => $"{EntityName}_deadletter";
     }
 
@@ -21,7 +49,7 @@
     /// Implements the <see cref="AttributeValidator" />
     /// </summary>
     /// <seealso cref="AttributeValidator" />
-    public class ReceiverSetup : AttributeValidator 
+    public class ReceiverConfig : PubSubEntityConfig, IMessageEntityConfig
     {
         private string _entityName;
 
@@ -30,14 +58,14 @@
         /// </summary>
         /// <value>The project identifier.</value>
         [Required]
-        internal string ProjectId { get; set; }
+        internal new string ProjectId { get; set; }
 
         /// <summary>
         /// Gets or sets the name of the entity to receive from.
         /// </summary>
         /// <value>The name of the entity to receive from.</value>
         [Required]
-        public string EntityName 
+        public new string EntityName 
         {
             get => _entityName;
             set {
@@ -60,7 +88,7 @@
         public KeyValuePair<string, string>? EntityFilter { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether to [create the receiver entity if it does not already exist].
+        /// Gets or sets a value indicating whether to [create the receiverConfig entity if it does not already exist].
         /// </summary>
         /// <value><c>true</c> if [create entity if not exists]; otherwise, <c>false</c> (don't auto create).</value>
         public bool CreateEntityIfNotExists { get; set; }
@@ -70,14 +98,6 @@
         /// </summary>
         /// <value><c>true</c> if [read error queue]; otherwise, <c>false</c>.</value>
         public bool ReadFromErrorEntity { get; set; }
-
-        /// <summary>Gets the full relative name of the topic in GCP pub sub.</summary>
-        public string TopicRelativeName => $"projects/{ProjectId}/topics/{EntityName}";
-
-        public string DeadLetterEntityName => $"{EntityName}_deadletter";
-
-        /// <summary>Gets the full relative name of the dead-letter topic in GCP pub sub.</summary>
-        public string DeadLetterTopicRelativeName => $"projects/{ProjectId}/topics/{DeadLetterEntityName}";
     }
 
     /// <summary>
@@ -85,37 +105,23 @@
     /// Implements the <see cref="AttributeValidator" />
     /// </summary>
     /// <seealso cref="AttributeValidator" />
-    public class SenderSetup : AttributeValidator
+    public class SenderConfig : PubSubEntityConfig
     {
         /// <summary>
         /// Gets or sets the project identifier.
         /// </summary>
         /// <value>The project identifier.</value>
         [Required]
-        internal string ProjectId { get; set; }
+        internal new string ProjectId { get; set; }
 
         /// <summary>
-        /// Gets or sets the topic identifier.
-        /// </summary>
-        /// <value>The topic identifier.</value>
-        [Required]
-        public string TopicId { get; set; }
-        public string DeadLetterEntityName => $"{TopicId}_deadletter";
-
-        /// <summary>Gets the full relative name of the dead-letter topic in GCP pub sub.</summary>
-        public string DeadLetterTopicRelativeName => $"projects/{ProjectId}/topics/{DeadLetterEntityName}";
-
-        /// <summary>
-        /// Gets or sets a value indicating whether to [create the receiver entity if it does not already exist].
+        /// Gets or sets a value indicating whether to [create the receiverConfig entity if it does not already exist].
         /// </summary>
         /// <value><c>true</c> if [create entity if not exists]; otherwise, <c>false</c> (don't auto create).</value>
         public bool CreateEntityIfNotExists { get; set; }
-
-        /// <summary>Gets the full relative name of the topic in GCP pub sub.</summary>
-        public string TopicRelativeName => new TopicName(ProjectId, TopicId).ToString();
     }
 
-    public class JsonAuthConfig : PubSubConfig
+    public class PubSubJsonAuthConfig : PubSubConfig
     {
         [Required]
         public string JsonAuthFile { get; set; }
@@ -129,8 +135,8 @@
     public class PubSubConfig : AttributeValidator
     {
         private string _projectId;
-        private ReceiverSetup _receiver;
-        private SenderSetup _sender;
+        private ReceiverConfig _receiverConfig;
+        private SenderConfig _sender;
 
         /// <summary>Gets or sets the project identifier.</summary>
         /// <value>The project identifier.</value>
@@ -139,30 +145,30 @@
             set
             {
                 _projectId = value;
-                if (_receiver != null)
-                    _receiver.ProjectId = _projectId;
+                if (_receiverConfig != null)
+                    _receiverConfig.ProjectId = _projectId;
                 if (_sender != null)
                     _sender.ProjectId = _projectId;
             }
         }
 
         /// <summary>
-        /// Gets or sets the receiver configuration.
+        /// Gets or sets the receiverConfig configuration.
         /// </summary>
-        /// <value>The receiver config.</value>
-        public ReceiverSetup Receiver 
+        /// <value>The receiverConfig config.</value>
+        public ReceiverConfig ReceiverConfig 
         {
             get
             {
-                if (_receiver != null)
-                    _receiver.ProjectId = ProjectId;
-                return _receiver;
+                if (_receiverConfig != null)
+                    _receiverConfig.ProjectId = ProjectId;
+                return _receiverConfig;
             }
             set
             {
-                _receiver = value;
-                if (_receiver != null)
-                    _receiver.ProjectId = ProjectId;
+                _receiverConfig = value;
+                if (_receiverConfig != null)
+                    _receiverConfig.ProjectId = ProjectId;
             }
         }
 
@@ -170,7 +176,7 @@
         /// Gets or sets the sender configuration.
         /// </summary>
         /// <value>The sender config.</value>
-        public SenderSetup Sender
+        public SenderConfig Sender
         {
             get
             {
@@ -189,10 +195,10 @@
         /// <inheritdoc cref="ValidateResult"/>
         public override ValidateResult Validate(IServiceProvider serviceProvider = null)
         {
-            // Validate receiver config if set.
-            if (Receiver != null)
+            // Validate receiverConfig config if set.
+            if (ReceiverConfig != null)
             {
-                var validationResult = Receiver.Validate();
+                var validationResult = ReceiverConfig.Validate();
                 if (!validationResult.IsValid)
                     return validationResult;
             }
@@ -213,7 +219,7 @@
         /// <inheritdoc />
         public override string ToString()
         {
-            return $"ProjectId:{ProjectId}{Environment.NewLine}ReceiverInfo: {(Receiver == null ? "[NOT SET]" : Receiver.ToString())}" +
+            return $"ProjectId:{ProjectId}{Environment.NewLine}ReceiverInfo: {(ReceiverConfig == null ? "[NOT SET]" : ReceiverConfig.ToString())}" +
                    $"{Environment.NewLine}SenderInfo: {(Sender == null ? "[NOT SET]" : Sender.ToString())}";
         }
     }

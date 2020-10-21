@@ -19,18 +19,18 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         {
             _testTopicName = $"testTopic_{DateTime.Now.ToEpochTime()}";
             _config = new ConfigurationBuilder().AddJsonFile("appSettings.json").Build();
-            var messenger = new PubSubMessenger(new JsonAuthConfig()
+            var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
             {
                 JsonAuthFile = _config["CredentialPath"],
                 ProjectId = _config["GcpProjectId"],
-                Receiver = new ReceiverSetup()
+                ReceiverConfig = new ReceiverConfig()
                 {
                     EntityName = _testTopicName,
                     CreateEntityIfNotExists = true
                 },
-                Sender = new SenderSetup()
+                Sender = new SenderConfig()
                 {
-                    TopicId = _testTopicName,
+                    EntityName = _testTopicName,
                     CreateEntityIfNotExists = true
                 }
             });
@@ -238,7 +238,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    ServiceBusMessenger.ConnectionStrings.Should().NotBeEmpty();
         //}
 
-        ///// <summary>Ensure the update receiver works after a receive one was executed.</summary>
+        ///// <summary>Ensure the update receiverConfig works after a receive one was executed.</summary>
         //[Fact]
         //public void Test_ServiceBusTopicMessenger_UpdateReceiverReceiveOne()
         //{
@@ -271,7 +271,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    Assert.Equal(receivedMessageOne, testMessageOne);
         //    topicOne.Complete(receivedMessageOne).GetAwaiter().GetResult();
 
-        //    //Update receiver to listen to the second subscription
+        //    //Update receiverConfig to listen to the second subscription
         //    (topicOne.EntityManager as ServiceBusManager)?.UpdateReceiver(new ReceiverInfo()
         //    {
         //        EntityName = "updatereceiverreceivertwoB",
@@ -822,7 +822,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    AssertExtensions.DoesNotThrow(async () => await topicMessenger.SendBatch(messages, properties));
         //}
 
-        ///// <summary>Ensure an error is thrown during receiver setup when expected.</summary>
+        ///// <summary>Ensure an error is thrown during receiverConfig setup when expected.</summary>
         //[Fact]
         //public async Task ServiceBusTopicMessenger_ReceiveSetupError()
         //{
@@ -856,7 +856,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    AssertExtensions.DoesNotThrow(async () => await topicMessenger.SendBatch(messages, properties));
         //}
 
-        ///// <summary>Ensure the receiver can be updated with different receiver info.</summary>
+        ///// <summary>Ensure the receiverConfig can be updated with different receiverConfig info.</summary>
         //[Fact]
         //public void Test_ServiceBusQueueMessenger_UpdateReceiverChangesSubscription()
         //{
@@ -881,7 +881,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    var testMessenger = new ServiceBusMessenger(new ConnectionConfig()
         //    {
         //        ConnectionString = config.GetValue<string>("ConnectionString"),
-        //        Receiver = new ReceiverSetup()
+        //        ReceiverConfig = new ReceiverConfig()
         //        {
         //            EntityType = EntityType.Topic,
         //            EntityName = "updatereceiverreceiverone",
@@ -901,7 +901,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    Assert.Equal(receivedMessageOne, testMessageOne);
         //    testMessenger.Complete(receivedMessageOne).GetAwaiter().GetResult();
 
-        //    //Update receiver to listen to the second subscription
+        //    //Update receiverConfig to listen to the second subscription
         //    testMessenger.UpdateReceiver("updatereceiverreceivertwo", "subtwo").GetAwaiter().GetResult();
 
         //    var receivedMessageTwo = testMessenger.ReceiveOne<string>();
@@ -916,7 +916,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    testMessenger.Complete(receivedMessageTwo).GetAwaiter().GetResult();
         //}
 
-        ///// <summary>Ensure the receiver can be updated with different receiver info, moving from topic to queue.</summary>
+        ///// <summary>Ensure the receiverConfig can be updated with different receiverConfig info, moving from topic to queue.</summary>
         //[Fact]
         //public void Test_ServiceBusQueueMessenger_UpdateReceiverChangesSubscriptionWithDifferentType()
         //{
@@ -941,7 +941,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    var testMessenger = new ServiceBusMessenger(new ConnectionConfig()
         //    {
         //        ConnectionString = config.GetValue<string>("ConnectionString"),
-        //        Receiver = new ReceiverSetup()
+        //        ReceiverConfig = new ReceiverConfig()
         //        {
         //            EntityType = EntityType.Topic,
         //            EntityName = "updatereceiverreceiverone1",
@@ -962,7 +962,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    receivedMessageOne.Should().BeEquivalentTo(testMessageOne);
         //    testMessenger.Complete(receivedMessageOne).GetAwaiter().GetResult();
 
-        //    //Update receiver to listen to the second subscription
+        //    //Update receiverConfig to listen to the second subscription
         //    testMessenger.UpdateReceiver("updatereceiverreceivertwo2", "subtwo2").GetAwaiter().GetResult();
 
         //    var receivedMessageTwo = testMessenger.ReceiveOne<TestProps>();
@@ -997,7 +997,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //        new ConnectionConfig
         //        {
         //            ConnectionString = _config.GetValue<string>("ConnectionString"),
-        //            Receiver = new ReceiverSetup()
+        //            ReceiverConfig = new ReceiverConfig()
         //            {
         //                EntityName = entityName,
         //                EntitySubscriptionName = entitySub,
@@ -1005,7 +1005,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //                SupportStringBodyType = true,
         //                EntityType = EntityType.Topic
         //            },
-        //            Sender = new SenderSetup { EntityName = entityName, MessageVersion = 2.00 }
+        //            Sender = new SenderConfig { EntityName = entityName, MessageVersion = 2.00 }
         //        }, _logger);
         //}
 
@@ -1024,13 +1024,13 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    return new ServiceBusMessenger(new ConnectionConfig
         //    {
         //        ConnectionString = _config.GetValue<string>("ConnectionString"),
-        //        Receiver = new ReceiverSetup()
+        //        ReceiverConfig = new ReceiverConfig()
         //        {
         //            EntityType = EntityType.Queue,
         //            EntityName = entityName,
         //            CreateEntityIfNotExists = true
         //        },
-        //        Sender = new SenderSetup
+        //        Sender = new SenderConfig
         //        {
         //            EntityType = EntityType.Queue,
         //            EntityName = entityName
