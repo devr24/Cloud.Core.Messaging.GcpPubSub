@@ -43,7 +43,7 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
                 ProjectId = "projId",
                 EntityName = "entityName"
             };
-            
+
             // Assert
             config.TopicRelativeName.Should().Be($"projects/projId/topics/entityName");
             config.DeadLetterEntityName.Should().Be($"entityName_deadletter");

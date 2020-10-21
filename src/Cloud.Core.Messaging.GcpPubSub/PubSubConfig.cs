@@ -58,7 +58,7 @@
         /// </summary>
         /// <value>The project identifier.</value>
         [Required]
-        internal new string ProjectId { get; set; }
+        internal new string ProjectId { get => base.ProjectId; set => base.ProjectId = value; }
 
         /// <summary>
         /// Gets or sets the name of the entity to receive from.
@@ -72,6 +72,7 @@
                 if (EntitySubscriptionName.IsNullOrEmpty())
                     EntitySubscriptionName = $"{value}_default"; 
                 _entityName = value;
+                base.EntityName = value;
             }
         }
 
@@ -112,7 +113,7 @@
         /// </summary>
         /// <value>The project identifier.</value>
         [Required]
-        internal new string ProjectId { get; set; }
+        internal new string ProjectId { get => base.ProjectId; set => base.ProjectId = value; }
 
         /// <summary>
         /// Gets or sets a value indicating whether to [create the receiverConfig entity if it does not already exist].
