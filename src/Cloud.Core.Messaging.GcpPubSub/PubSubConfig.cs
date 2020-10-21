@@ -20,6 +20,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
     /// <seealso cref="AttributeValidator" />
     public class ReceiverSetup : AttributeValidator, IEntityConfig
     {
+        private string _entityName;
+
         /// <summary>
         /// Gets or sets the project identifier.
         /// </summary>
@@ -32,13 +34,20 @@ namespace Cloud.Core.Messaging.GcpPubSub
         /// </summary>
         /// <value>The name of the entity to receive from.</value>
         [Required]
-        public string EntityName { get; set; }
+        public string EntityName 
+        {
+            get => _entityName;
+            set {
+                if (EntitySubscriptionName.IsNullOrEmpty())
+                    EntitySubscriptionName = $"{value}_default"; 
+                _entityName = value;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the entity subscription to receive from (if using topics, otherwise this remains null when using queues as its not applicable).
         /// </summary>
         /// <value>The entity subscription.</value>
-        [Required]
         public string EntitySubscriptionName { get; set; }
 
         /// <summary>

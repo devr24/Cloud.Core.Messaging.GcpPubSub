@@ -1,4 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Cloud.Core.Messaging.PubSubMessenger.Tests")]
-[assembly: InternalsVisibleTo("Cloud.Core.Messaging.PubSubMessenger.Tests.Profiler")]
+[assembly: InternalsVisibleTo("Cloud.Core.Messaging.GcpPubSub.Tests")]
+[assembly: InternalsVisibleTo("Cloud.Core.Messaging.GcpPubSub.Tests.Profiler")]

@@ -126,6 +126,15 @@ namespace Cloud.Core.Messaging.GcpPubSub
             }
         }
 
+        public async Task Send<T>(string topicName, T message, KeyValuePair<string, object>[] properties = null) where T : class
+        {
+            await InternalSendBatch(new TopicName(_config.ProjectId, topicName).ToString(), new List<T> { message }, properties, null, 1);
+        }
+        public async Task Send<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null, int batchSize = 100) where T : class
+        {
+            await InternalSendBatch(new TopicName(_config.ProjectId, topicName).ToString(), messages, properties, null, batchSize);
+        }
+
         public async Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) where T : class
         {
             await SendBatch(new List<T> { message }, p => null, 1);
@@ -309,7 +318,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
         }
 
 
-        private void InitialiseClients()
+        internal void InitialiseClients()
         {
             if (_initialisedClients) return;
 
@@ -325,7 +334,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             _initialisedClients = true;
         }
 
-        private void CreateIfNotExists()
+        internal void CreateIfNotExists()
         {
             if (_createdTopics)
                 return;
@@ -392,7 +401,9 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             // Catch any remaining messages.
             if (publishRequest.Messages.Count > 0)
+            {
                 await PublisherClient.PublishAsync(publishRequest);
+            }
         }
 
         internal async Task<List<IMessageEntity<T>>> InternalReceiveBatch<T>(int batchSize) where T : class
@@ -401,8 +412,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             try
             {
-                PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName), true, batchSize);
-
+                PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.Receiver.EntitySubscriptionName), false, batchSize);
                 var message = response.ReceivedMessages.FirstOrDefault();
 
                 if (message == null)

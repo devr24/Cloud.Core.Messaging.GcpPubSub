@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+﻿using System;
 using Cloud.Core.Testing;
 using Cloud.Core.Testing.Lorem;
 using FluentAssertions;
@@ -9,65 +9,77 @@ using Xunit;
 
 namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 {
-    [IsIntegration]
-    public class PubSubSendReceiveTests 
+    public class PubSubTestsFixture : IDisposable
     {
-        private readonly ILogger _logger;
+        private readonly string _testTopicName;
         private readonly IConfiguration _config;
 
-        public PubSubSendReceiveTests()
+        public IReactiveMessenger ReactiveMessenger { get; }
+        public IMessenger Messenger { get; }
+
+        public PubSubTestsFixture()
         {
+            _testTopicName = $"testTopic_{DateTime.Now.ToEpochTime()}";
             _config = new ConfigurationBuilder().AddJsonFile("appSettings.json").Build();
-            _logger = new ServiceCollection().AddLogging(builder => builder.AddConsole())
-                .BuildServiceProvider().GetService<ILogger<PubSubSendReceiveTests>>();
+            var messenger = new PubSubMessenger(new JsonAuthConfig()
+            {
+                JsonAuthFile = _config["CredentialPath"],
+                ProjectId = _config["GcpProjectId"],
+                Receiver = new ReceiverSetup()
+                {
+                    EntityName = _testTopicName,
+                    CreateEntityIfNotExists = true
+                },
+                Sender = new SenderSetup()
+                {
+                    TopicId = _testTopicName,
+                    CreateEntityIfNotExists = true
+                }
+            });
+            Messenger = messenger;
+            ReactiveMessenger = messenger;
+        }
+
+        public void Dispose()
+        {
+            // clean up test data from the database
+            Messenger.EntityManager.DeleteEntity(_testTopicName).GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity($"{_testTopicName}_deadletter").GetAwaiter().GetResult();
+        }
+    }
+
+
+    [IsIntegration]
+    public class PubSubSendReceiveTests : IClassFixture<PubSubTestsFixture>, IDisposable
+    {
+        private readonly PubSubTestsFixture _fixture;
+
+        public PubSubSendReceiveTests(PubSubTestsFixture fixture)
+        {
+            _fixture = fixture;
         }
 
         [Fact]
         public void Test_PubSubMessenger_SendMessage()
         {
             // Arrange
-            var topicName = "PocTopic1";
             var lorem = Lorem.GetSentence(5);
-            var messager = new PubSubMessenger(new JsonAuthConfig()
-            {
-                JsonAuthFile = _config["CredentialPath"],
-                ProjectId = _config["GcpProjectId"],
-                Receiver = new ReceiverSetup()
-                {
-                    EntityName = topicName,
-                    EntitySubscriptionName = "test",
-                    CreateEntityIfNotExists = true
-                },
-                Sender = new SenderSetup()
-                {
-                    TopicId = topicName,
-                    CreateEntityIfNotExists = true
-                }
-            });
-
-            messager.EntityManager.DeleteEntity(topicName).GetAwaiter().GetResult();
 
             // Act
-            messager.Send(lorem).GetAwaiter().GetResult();
+            _fixture.Messenger.Send(lorem).GetAwaiter().GetResult();
 
-            string msg;
-            var maxAttempts = 10;
+            string msg = _fixture.Messenger.ReceiveOne<string>();
 
-            do
-            {
-                msg = messager.ReceiveOne<string>();
-
-                Task.Delay(500).GetAwaiter().GetResult();
-            } while (maxAttempts < 10 && msg == null);
-            
-            messager.Complete(msg).GetAwaiter().GetResult();
+            _fixture.Messenger.Complete(msg).GetAwaiter().GetResult();
 
             // Assert
             msg.Should().BeEquivalentTo(lorem);
         }
 
-
-
+        public void Dispose()
+        {
+            _fixture.Dispose();
+        }
 
 
         // Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) 

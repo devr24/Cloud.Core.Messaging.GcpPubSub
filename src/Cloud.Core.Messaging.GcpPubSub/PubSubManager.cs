@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Google.Api.Gax.ResourceNames;
 using Google.Cloud.PubSub.V1;
@@ -47,8 +48,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
                     var createSubscription = new Subscription
                     {
                         SubscriptionName = new SubscriptionName(projectId, subscriptionName),
-                        Topic = new TopicName(projectId, topicName).ToString(),
-                        AckDeadlineSeconds = 60
+                        Topic = new TopicName(projectId, topicName).ToString()
                     };
                     if (!deadletterTopic.IsNullOrEmpty())
                     {
@@ -59,8 +59,6 @@ namespace Cloud.Core.Messaging.GcpPubSub
                         };
                     }
                     await _receiverSubscriptionClient.CreateSubscriptionAsync(createSubscription);
-
-                    await Task.Delay(10000);
                     return true;
                 }
                 catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
