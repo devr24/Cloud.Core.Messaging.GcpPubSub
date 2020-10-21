@@ -360,7 +360,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
         {
             ChannelCredentials channelCredentials = null;
 
-            if (_jsonAuthFile.IsNullOrEmpty())
+            if (!_jsonAuthFile.IsNullOrEmpty())
             {
                 channelCredentials = GoogleCredential.FromFile(_jsonAuthFile).ToChannelCredentials();
             }
