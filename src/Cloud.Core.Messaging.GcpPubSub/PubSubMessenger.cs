@@ -1,4 +1,5 @@
-﻿using Cloud.Core.Extensions;
+﻿using System.Diagnostics;
+using Cloud.Core.Extensions;
 
 namespace Cloud.Core.Messaging.GcpPubSub
 {
@@ -133,7 +134,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public async Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) where T : class
         {
-            await SendBatch(new List<T> { message }, p => null, 1);
+            await SendBatch(new List<T> { message }, p => properties, 1);
         }
 
         public async Task SendBatch<T>(IEnumerable<T> messages, int batchSize = 10) where T : class
@@ -143,7 +144,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public async Task SendBatch<T>(IEnumerable<T> messages, KeyValuePair<string, object>[] properties, int batchSize = 100) where T : class
         {
-            await SendBatch(messages, p=> properties, batchSize);
+            await SendBatch(messages, p => properties, batchSize);
         }
 
         public async Task SendBatch<T>(IEnumerable<T> messages, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize = 100) where T : class
@@ -190,7 +191,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public async Task<List<T>> ReceiveBatch<T>(int batchSize) where T : class
         {
-            var results = await InternalReceiveBatch<T>(batchSize);
+            var results = await ReceiveBatchEntity<T>(batchSize);
             return results.Select(b => b.Body).ToList();
         }
 
@@ -381,7 +382,6 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         internal async Task InternalSendBatch<T>(string topic, IEnumerable<T> messages, KeyValuePair<string, object>[] properties, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize) where T : class
         {
-            var batchMsgCount = 0;
             var isByteArray = typeof(T) == typeof(byte[]);
             var publishRequest = new PublishRequest
             {
@@ -403,15 +403,12 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
                 publishRequest.Messages.Add(sendMsg);
 
-                if (batchMsgCount > batchSize)
+                if (publishRequest.Messages.Count >= batchSize)
                 {
                     // Publish a message to the topic using PublisherClient.
                     await PublisherClient.PublishAsync(publishRequest);
                     publishRequest.Messages.Clear();
-                    batchMsgCount = 0;
                 }
-
-                batchMsgCount++;
             }
 
             // Catch any remaining messages.
@@ -425,14 +422,14 @@ namespace Cloud.Core.Messaging.GcpPubSub
         {
             var batch = new List<IMessageEntity<T>>();
 
-            try
+            PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.ReceiverConfig.EntitySubscriptionName), false, batchSize);
+            var messages = response.ReceivedMessages;
+
+            if (messages == null)
+                return null;
+
+            foreach (var message in messages)
             {
-                PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.ReceiverConfig.EntitySubscriptionName), false, batchSize);
-                var message = response.ReceivedMessages.FirstOrDefault();
-
-                if (message == null)
-                    return null;
-
                 var typedContent = GetTypedMessageContent<T>(message.Message);
 
                 _messages.TryAdd(typedContent, message);
@@ -440,11 +437,6 @@ namespace Cloud.Core.Messaging.GcpPubSub
                 var props = ReadProperties(message.Message);
 
                 batch.Add(new PubSubEntity<T> { Body = typedContent, Properties = props });
-            }
-            catch (RpcException e)
-            {
-                _logger?.LogError(e, "Error during read of pub/sub message");
-                return null;
             }
 
             return batch;

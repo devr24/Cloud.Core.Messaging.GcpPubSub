@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using Cloud.Core.Testing;
 using Cloud.Core.Testing.Lorem;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.VisualBasic;
 using Xunit;
 
 namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
@@ -47,7 +49,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
     }
 
     [IsIntegration]
-    public class PubSubSendReceiveTests : IClassFixture<PubSubTestsFixture>, IDisposable
+    public class PubSubSendReceiveTests : IClassFixture<PubSubTestsFixture>
     {
         private readonly PubSubTestsFixture _fixture;
 
@@ -56,6 +58,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             _fixture = fixture;
         }
 
+        /// <summary>Verify a sent message can then be received and completed.</summary>
         [Fact]
         public void Test_PubSubMessenger_SendMessage()
         {
@@ -65,21 +68,68 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Act
             _fixture.Messenger.Send(lorem).GetAwaiter().GetResult();
 
+            var msg = _fixture.Messenger.ReceiveOne<string>();
+
+            _fixture.Messenger.Complete(msg).GetAwaiter().GetResult();
+
+            // Assert
+            msg.Should().BeEquivalentTo(lorem);
+        }
+
+        /// <summary>Verify a message sent with properties can be received with properties intact.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_SendMessageWithProps()
+        {
+            // Arrange
+            var lorem = Lorem.GetSentence(5);
+
+            // Act
+            _fixture.Messenger.Send(lorem, new KeyValuePair<string, object>[]
+            {
+                new KeyValuePair<string,object>("first", 1),
+                new KeyValuePair<string, object>("second", "two")
+            }).GetAwaiter().GetResult();
+
             var msg = _fixture.Messenger.ReceiveOneEntity<string>();
 
             _fixture.Messenger.Complete(msg).GetAwaiter().GetResult();
 
             // Assert
             msg.Body.Should().BeEquivalentTo(lorem);
+            msg.Properties["first"].Should().Be("1");
+            msg.Properties["second"].Should().Be("two");
         }
 
-        public void Dispose()
+        /// <summary>Verify a sent message can then be received and completed.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_SendMessageBatch()
         {
-            _fixture.Dispose();
+            // Arrange
+            List<string> msgs;
+            var batchSize = 10;
+            var lorem = Lorem.GetParagraphs(50);
+
+            // Act
+            _fixture.Messenger.SendBatch(lorem, new KeyValuePair<string, object>[]
+            {
+                new KeyValuePair<string,object>("first", 1),
+                new KeyValuePair<string, object>("second", "two")
+            }, batchSize).GetAwaiter().GetResult();
+
+            do
+            {
+                // Receive a batch of messages.
+                msgs = _fixture.Messenger.ReceiveBatch<string>(batchSize).GetAwaiter().GetResult();
+
+                // Complete multiple messages at once.
+                _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
+
+                // Assert
+                if (msgs.Count > 0)
+                    msgs.Count.Should().Be(batchSize);
+
+            } while (msgs.Count > 0);
         }
-
-
-        // Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) 
 
         // Task SendBatch<T>(IEnumerable<T> messages, int batchSize = 10)
 
@@ -134,8 +184,6 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
 
 
-
-
         ///// <summary>Ensure the message entity counts work as expected.</summary>
         //[Fact]
         //public void Test_ServiceBusMessenger_Count()
@@ -144,7 +192,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    var queueMessenger = GetQueueMessenger("testCountQueue");
         //    queueMessenger.ConnectionManager.EntityFullPurge(queueMessenger.ConnectionManager.ReceiverInfo.EntityName).GetAwaiter().GetResult();
         //    queueMessenger.ConnectionManager.EntityFullPurge(queueMessenger.ConnectionManager.SenderInfo.EntityName).GetAwaiter().GetResult();
-            
+
         //    // Act/Assert
         //    Assert.NotEmpty(queueMessenger.ConnectionManager.ToString());
 
@@ -438,7 +486,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //    do
         //    {
         //        var messages = queueMessenger.ReceiveBatchEntity<string>(batchSize);
-                
+
         //        foreach (var msg in messages)
         //        {
         //            queueMessenger.Complete(msg.Body).GetAwaiter().GetResult();
@@ -457,7 +505,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         //{
         //    // Arrange
         //    var queueMessenger = GetQueueMessenger("testReceiveOneQueue");
-            
+
         //    // Act - Send the message to initiate receive.
         //    CreateStringTestMessages(queueMessenger, 10).GetAwaiter().GetResult();
         //    Thread.Sleep(10000);
