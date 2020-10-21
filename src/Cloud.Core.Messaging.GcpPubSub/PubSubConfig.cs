@@ -13,12 +13,21 @@ namespace Cloud.Core.Messaging.GcpPubSub
         public string JsonAuthFile { get; set; }
     }
 
+    public class PubSubEntityConfig : IMessageEntityConfig
+    {
+        public string ProjectId { get; set; }
+        public string EntityName { get; set; }
+        public string EntitySubscriptionName { get; set; }
+        public string TopicRelativeName => $"projects/{ProjectId}/topics/{EntityName}";
+        public string DeadLetterEntityName => $"{EntityName}_deadletter";
+    }
+
     /// <summary>
     /// Class GCP PubSub Config.
     /// Implements the <see cref="AttributeValidator" />
     /// </summary>
     /// <seealso cref="AttributeValidator" />
-    public class ReceiverSetup : AttributeValidator
+    public class ReceiverSetup : AttributeValidator 
     {
         private string _entityName;
 

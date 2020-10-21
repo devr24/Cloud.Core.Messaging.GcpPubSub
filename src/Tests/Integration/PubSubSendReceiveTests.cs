@@ -3,8 +3,6 @@ using Cloud.Core.Testing;
 using Cloud.Core.Testing.Lorem;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration

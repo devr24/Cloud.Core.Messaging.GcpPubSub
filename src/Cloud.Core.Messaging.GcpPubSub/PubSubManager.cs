@@ -87,10 +87,10 @@ namespace Cloud.Core.Messaging.GcpPubSub
             return false;
         }
 
-        public async Task CreateEntity(string entityName)
+        public async Task CreateEntity(IMessageEntityConfig entity)
         {
             //TODO: Consolidate to single interface for entity??
-
+            var psConfig = entity as PubSubEntityConfig;
 
             //try
             //{
@@ -109,7 +109,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             //    }
             //}
 
-            
+
             //await _receiverSubscriptionClient.CreateSubscriptionAsync(new Subscription
             //{
             //    SubscriptionName = SubscriptionName.Parse(config.Receiver.EntitySubscriptionName)
