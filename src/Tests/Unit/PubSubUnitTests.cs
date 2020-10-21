@@ -101,7 +101,43 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
         }
 
         [Fact]
-        public void Test_PubSub_ReceiverSetup() { }
+        public void Test_ReceiverConfig_Setup()
+        {
+            // Arrange
+            var receiver = new ReceiverConfig
+            {
+                EntityName = "entityName",
+                EntitySubscriptionName = "test",
+                ReadFromErrorEntity = false,
+                CreateEntityIfNotExists = false,
+                EntityFilter = new KeyValuePair<string, string>("key","value"),
+                ProjectId = "projId"
+            };
+
+            // Assert
+            receiver.TopicRelativeName.Should().Be($"projects/projId/topics/entityName");
+            receiver.DeadLetterEntityName.Should().Be($"entityName_deadletter");
+            receiver.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
+            receiver.ToString().Length.Should().BeGreaterThan(0);
+        }
+
+        [Fact]
+        public void Test_SenderConfig_Setup()
+        {
+            // Arrange
+            var receiver = new SenderConfig
+            {
+                EntityName = "entityName",
+                CreateEntityIfNotExists = false,
+                ProjectId = "projId"
+            };
+
+            // Assert
+            receiver.TopicRelativeName.Should().Be($"projects/projId/topics/entityName");
+            receiver.DeadLetterEntityName.Should().Be($"entityName_deadletter");
+            receiver.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
+            receiver.ToString().Length.Should().BeGreaterThan(0);
+        }
 
         [Fact]
         public void Test_PubSub_SenderSetup() { }
