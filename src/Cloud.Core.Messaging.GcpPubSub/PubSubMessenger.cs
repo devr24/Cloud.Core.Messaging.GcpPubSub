@@ -32,7 +32,6 @@ namespace Cloud.Core.Messaging.GcpPubSub
     /// <seealso cref="IReactiveMessenger" />
     public class PubSubMessenger : IMessenger, IReactiveMessenger
     {
-        private readonly ConcurrentDictionary<object, ReceivedMessage> _messages = new ConcurrentDictionary<object, ReceivedMessage>(ObjectReferenceEqualityComparer<object>.Default);
         private readonly ISubject<object> _messagesIn = new Subject<object>();
         private readonly CancellationTokenSource _receiveCancellationToken = new CancellationTokenSource();
         private readonly ILogger _logger;
@@ -46,6 +45,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
         private bool _initialisedClients;
 
         internal readonly PubSubConfig Config;
+        internal readonly ConcurrentDictionary<object, ReceivedMessage> Messages = new ConcurrentDictionary<object, ReceivedMessage>(ObjectReferenceEqualityComparer<object>.Default);
 
         internal SubscriberServiceApiClient ManagementClient
         {
@@ -243,7 +243,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             var entityMessage = message as IMessageEntity<T>;
             T msg = entityMessage == null ? message : entityMessage.Body;
 
-            return ReadProperties(_messages[msg]?.Message);
+            return ReadProperties(Messages[msg]?.Message);
         }
 
         public async Task Complete<T>(T message) where T : class
@@ -257,14 +257,14 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             foreach (var message in messages)
             {
-                if (_messages.TryRemove(message, out var foundMsg))
+                if (Messages.TryRemove(message, out var foundMsg))
                 {
                     ackIds.Add(foundMsg.AckId);
                 }
                 else
                 {
                     var body = message.GetPropertyValueByName("body");
-                    if (body != null && _messages.TryRemove(body, out foundMsg))
+                    if (body != null && Messages.TryRemove(body, out foundMsg))
                     {
                         ackIds.Add(foundMsg.AckId);
                     }
@@ -277,11 +277,11 @@ namespace Cloud.Core.Messaging.GcpPubSub
             }
         }
 
-        public Task Abandon<T>(T message, KeyValuePair<string, object>[] propertiesToModify) where T : class
+        public Task Abandon<T>(T message, KeyValuePair<string, object>[] propertiesToModify = null) where T : class
         {
             var entityMessage = message as IMessageEntity<T>;
             T msg = entityMessage == null ? message : entityMessage.Body;
-            return Task.FromResult(_messages.TryRemove(msg, out _));
+            return Task.FromResult(Messages.TryRemove(msg, out _));
         }
 
         public async Task Error<T>(T message, string reason = null) where T : class
@@ -434,7 +434,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             {
                 var typedContent = GetTypedMessageContent<T>(message.Message);
 
-                _messages.TryAdd(typedContent, message);
+                Messages.TryAdd(typedContent, message);
 
                 var props = ReadProperties(message.Message);
 

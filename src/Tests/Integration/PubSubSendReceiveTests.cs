@@ -163,7 +163,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Arrange
             List<string> msgs;
             var batchSize = 10;
-            var lorem = Lorem.GetParagraphs(50);
+            var lorem = Lorem.GetParagraphs(55);
 
             // Act
             _fixture.Messenger.SendBatch(lorem, batchSize).GetAwaiter().GetResult();

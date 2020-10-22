@@ -200,13 +200,43 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
         public void Test_PubSubMessenger_NotImplemented()
         {
             // Arrange
-            var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
+            using var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
             
             // Act/Assert
             Assert.Throws<NotImplementedException>(() => pubSub.GetSignedAccessUrl(null));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.Defer(new[] {""}, null));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatch<string>(new List<long> { 1 }));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }));
+        }
+
+        [Fact]
+        public void Test_PubSubMessenger_Abandon()
+        {
+            // Arrange
+            using var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
+            var test = "test";
+
+            // Act
+            pubSub.Messages.AddOrUpdate(test, null);
+            pubSub.Abandon(test).GetAwaiter().GetResult();
+
+            // Act/Assert
+            pubSub.Messages.ContainsKey(test).Should().BeFalse();
+        }
+
+        [Fact]
+        public void Test_PubSubMessenger_AbandonMessageEntity()
+        {
+            // Arrange
+            using var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
+            var test = new PubSubEntity<string> {Body = "test"};
+
+            // Act
+            pubSub.Messages.AddOrUpdate(test.Body, null);
+            pubSub.Abandon(test).GetAwaiter().GetResult();
+
+            // Act/Assert
+            pubSub.Messages.ContainsKey(test).Should().BeFalse();
         }
 
         private class TestClass
