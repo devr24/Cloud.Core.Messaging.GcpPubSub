@@ -317,9 +317,30 @@ namespace Cloud.Core.Messaging.GcpPubSub
             throw new NotImplementedException();
         }
 
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // Any clear up here.
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        // This code added to correctly implement the disposable pattern.
         public void Dispose()
         {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
+        #endregion
 
 
         internal void InitialiseClients()
@@ -332,7 +353,9 @@ namespace Cloud.Core.Messaging.GcpPubSub
             _managerClient ??= new SubscriberServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
             _publisherClient ??= new PublisherServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
             _pubSubManager ??= new PubSubManager(Config.ProjectId, _managerClient, _publisherClient);
-            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.EntitySubscriptionName),
+            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.ReadFromErrorEntity
+                    ? Config.ReceiverConfig.DeadLetterEntityName
+                    : Config.ReceiverConfig.EntitySubscriptionName),
                 new SubscriberClient.ClientCreationSettings(credentials: channelCredentials)).GetAwaiter().GetResult();
 
             _initialisedClients = true;
@@ -399,7 +422,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
                 if (props != null)
                 {
-                    foreach (var (key, value) in setProps(msg))
+                    foreach (var (key, value) in props)
                         sendMsg.Attributes.Add(key, value.ToString());
                 }
 
@@ -424,7 +447,11 @@ namespace Cloud.Core.Messaging.GcpPubSub
         {
             var batch = new List<IMessageEntity<T>>();
 
-            PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.EntitySubscriptionName), false, batchSize);
+            var topicName = Config.ReceiverConfig.ReadFromErrorEntity
+                ? Config.ReceiverConfig.DeadLetterEntityName
+                : Config.ReceiverConfig.EntitySubscriptionName;
+
+            PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(Config.ProjectId, topicName), false, batchSize);
             var messages = response.ReceivedMessages;
 
             if (messages == null)

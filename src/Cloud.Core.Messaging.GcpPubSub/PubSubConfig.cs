@@ -12,36 +12,64 @@
     /// <seealso cref="AttributeValidator" />
     public class PubSubEntityConfig : AttributeValidator
     {
+        private string _entityName;
+        private string _projectId;
+
         /// <summary>
         /// Gets or sets the project identifier.
         /// </summary>
         /// <value>The project identifier.</value>
-        public string ProjectId { get; set; }
+        public string ProjectId
+        {
+            get => _projectId; 
+            set
+            {
+                _projectId = value;
+                SetProps();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the name of the entity.
         /// </summary>
         /// <value>The name of the entity.</value>
         [Required]
-        public string EntityName { get; set; }
+        public string EntityName { 
+            get => _entityName;
+            set
+            {
+                _entityName = value;
+                SetProps();
+            }
+        }
 
         /// <summary>
         /// Gets the name of the topic relative.
         /// </summary>
         /// <value>The name of the topic relative.</value>
-        public string TopicRelativeName => $"projects/{ProjectId}/topics/{EntityName}";
+        public string TopicRelativeName { get; private set; }
 
         /// <summary>
         /// Gets the name of the topic dead-letter relative.
         /// </summary>
         /// <value>The name of the topic dead-letter relative.</value>
-        public string TopicDeadletterRelativeName => $"projects/{ProjectId}/topics/{DeadLetterEntityName}";
+        public string TopicDeadletterRelativeName { get; private set; }
 
         /// <summary>
         /// Gets the name of the dead letter entity.
         /// </summary>
         /// <value>The name of the dead letter entity.</value>
-        public string DeadLetterEntityName => $"{EntityName}_deadletter";
+        public string DeadLetterEntityName { get; private set; }
+
+        private void SetProps()
+        {
+            TopicRelativeName = $"projects/{ProjectId}/topics/{EntityName}";
+            if (!_entityName.IsNullOrEmpty() && !_entityName.EndsWith("_deadletter"))
+            {
+                DeadLetterEntityName = $"{EntityName}_deadletter";
+                TopicDeadletterRelativeName = $"projects/{ProjectId}/topics/{DeadLetterEntityName}";
+            }
+        }
     }
 
     /// <summary>
