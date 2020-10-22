@@ -205,7 +205,6 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             
             // Act/Assert
             // Messenger methods.
-            Assert.Throws<NotImplementedException>(() => pubSub.GetSignedAccessUrl(null));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.Defer(new[] {""}, null));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatch<string>(new List<long> { 1 }));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }));

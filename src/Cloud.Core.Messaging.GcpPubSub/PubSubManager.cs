@@ -62,9 +62,13 @@
         {
             var createSubscription = new Subscription {
                 SubscriptionName = new SubscriptionName(_projectId, subscriptionName),
-                Topic = new TopicName(_projectId, topicName).ToString(),
-                Filter = filter
+                Topic = new TopicName(_projectId, topicName).ToString()
             };
+
+            if (!filter.IsNullOrEmpty())
+            {
+                createSubscription.Filter = filter;
+            }
 
             try
             {
