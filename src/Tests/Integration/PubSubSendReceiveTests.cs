@@ -247,14 +247,15 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             deadletterMsg.Properties["ErrorReason"].Should().NotBeNull();
         }
         
-        /// <summary>Verify messages can be streamed using observables.</summary>
+        // <summary>Verify messages can be streamed using observables.</summary>
         [Fact]
         public void Test_PubSubMessenger_StreamMessagesObservable()
         {
             // Arrange
-            var lorem = Lorem.GetSentences(50);
+            var lorem = Lorem.GetSentences(10);
             var waitTimer = new Stopwatch();
             var messagesProcessed = 0;
+            var processedAfterCancelCount = 0;
 
             // Act
             _fixture.ReactiveMessenger.Send(lorem).GetAwaiter().GetResult();
@@ -262,6 +263,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             {
                 _fixture.Messenger.Complete(m).GetAwaiter().GetResult();
                 messagesProcessed++;
+                processedAfterCancelCount++;
             }, (e) =>
             {
 
@@ -271,12 +273,23 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             do
             {
                 Task.Delay(500).GetAwaiter().GetResult();
-            } while (waitTimer.Elapsed.TotalSeconds < 20);
+            } while (waitTimer.Elapsed.TotalSeconds < 5);
 
             _fixture.Messenger.CancelReceive<string>();
 
+            Task.Delay(500).GetAwaiter().GetResult();
+
+            waitTimer.Reset();
+            waitTimer.Start();
+            processedAfterCancelCount = 0; // verify no more messages were processed after cancellation.
+            do
+            {
+                Task.Delay(500).GetAwaiter().GetResult();
+            } while (waitTimer.Elapsed.TotalSeconds < 5);
+
             // Assert
-            messagesProcessed.Should().BeGreaterOrEqualTo(10);
+            messagesProcessed.Should().BeGreaterOrEqualTo(1);
+            processedAfterCancelCount.Should().Be(0);
         }
 
         /// <summary>Verify messages can be streamed using callbacks.</summary>
@@ -284,9 +297,10 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         public void Test_PubSubMessenger_StreamMessages()
         {
             // Arrange
-            var lorem = Lorem.GetSentences(50);
+            var lorem = Lorem.GetSentences(10);
             var waitTimer = new Stopwatch();
             var messagesProcessed = 0;
+            var processedAfterCancelCount = 0;
 
             // Act
             _fixture.Messenger.Send(lorem).GetAwaiter().GetResult();
@@ -294,6 +308,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             {
                 _fixture.Messenger.Complete(m).GetAwaiter().GetResult();
                 messagesProcessed++;
+                processedAfterCancelCount++;
             }, (e) =>
             {
 
@@ -303,12 +318,23 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             do
             {
                 Task.Delay(500).GetAwaiter().GetResult();
-            } while (waitTimer.Elapsed.TotalSeconds < 20);
+            } while (waitTimer.Elapsed.TotalSeconds < 5);
 
             _fixture.Messenger.CancelReceive<string>();
+            
+            Task.Delay(500).GetAwaiter().GetResult();
+
+            waitTimer.Reset();
+            waitTimer.Start();
+            processedAfterCancelCount = 0; // verify no more messages were processed after cancellation.
+            do
+            {
+                Task.Delay(500).GetAwaiter().GetResult();
+            } while (waitTimer.Elapsed.TotalSeconds < 5);
 
             // Assert
-            messagesProcessed.Should().BeGreaterOrEqualTo(10);
+            messagesProcessed.Should().BeGreaterOrEqualTo(1);
+            processedAfterCancelCount.Should().Be(0); 
         }
 
         /// <summary>Verify exception when attempt to send but config is null.</summary>

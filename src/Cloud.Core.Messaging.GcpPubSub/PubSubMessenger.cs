@@ -455,7 +455,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             var messages = response.ReceivedMessages;
 
             if (!messages.Any())
-                return null;
+                return batch;
 
             foreach (var message in messages)
             {
