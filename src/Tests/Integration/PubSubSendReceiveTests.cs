@@ -51,6 +51,8 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // clean up test data from the database
             Messenger.EntityManager.DeleteEntity(TestTopicName).GetAwaiter().GetResult();
             Messenger.EntityManager.DeleteEntity($"{TestTopicName}_deadletter").GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity($"{TestTopicName}_stream").GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity($"{TestTopicName}_streamObs").GetAwaiter().GetResult();
         }
     }
 
@@ -137,7 +139,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         {
             // Arrange
             List<string> msgs;
-            var batchSize = 10;
+            var batchSize = 40;
             var lorem = Lorem.GetParagraphs(50);
             var batchCounter = 0;
 
@@ -156,7 +158,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 // Complete multiple messages at once.
                 _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
 
-                if (msgs.Count == 50)
+                if (msgs.Count == batchSize)
                     batchCounter++;
 
             } while (msgs.Count > 0);
@@ -171,8 +173,9 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         {
             // Arrange
             List<string> msgs;
-            var batchSize = 10;
-            var lorem = Lorem.GetParagraphs(51);
+            var batchSize = 40;
+            var lorem = Lorem.GetParagraphs(50);
+            var batchCounter = 0;
 
             // Act
             _fixture.Messenger.SendBatch(lorem, batchSize).GetAwaiter().GetResult();
@@ -186,10 +189,13 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
 
                 // Assert
-                if (msgs.Count > 1)
-                    msgs.Count.Should().Be(batchSize);
+                if (msgs.Count == batchSize)
+                    batchCounter++;
 
             } while (msgs.Count > 0);
+
+            // Assert
+            batchCounter.Should().BeGreaterThan(0);
         }
 
         /// <summary>Verify a batch of message entities can be received.</summary>
@@ -249,22 +255,37 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             deadletterMsg.Body.Should().BeEquivalentTo(lorem);
             deadletterMsg.Properties["ErrorReason"].Should().NotBeNull();
         }
-        
+
         // <summary>Verify messages can be streamed using observables.</summary>
         [Fact]
         public void Test_PubSubMessenger_StreamMessagesObservable()
         {
             // Arrange
+            var pubsub = new PubSubMessenger(new PubSubJsonAuthConfig()
+            {
+                JsonAuthFile = _fixture.CredentialPath,
+                ProjectId = _fixture.ProjectId,
+                ReceiverConfig = new ReceiverConfig()
+                {
+                    EntityName = $"{_fixture.TestTopicName}_streamObs",
+                    CreateEntityIfNotExists = true
+                },
+                Sender = new SenderConfig
+                {
+                    EntityName = $"{_fixture.TestTopicName}_streamObs",
+                    CreateEntityIfNotExists = true
+                }
+            });
             var lorem = Lorem.GetSentences(10);
             var waitTimer = new Stopwatch();
             var messagesProcessed = 0;
             var processedAfterCancelCount = 0;
 
             // Act
-            _fixture.ReactiveMessenger.Send(lorem).GetAwaiter().GetResult();
-            _fixture.ReactiveMessenger.StartReceive<string>().Subscribe((m) =>
+            pubsub.Send(lorem).GetAwaiter().GetResult();
+            pubsub.StartReceive<string>().Subscribe((m) =>
             {
-                _fixture.Messenger.Complete(m).GetAwaiter().GetResult();
+                pubsub.Complete(m).GetAwaiter().GetResult();
                 messagesProcessed++;
                 processedAfterCancelCount++;
             }, (e) =>
@@ -278,7 +299,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 Task.Delay(500).GetAwaiter().GetResult();
             } while (waitTimer.Elapsed.TotalSeconds < 5);
 
-            _fixture.Messenger.CancelReceive<string>();
+            pubsub.CancelReceive<string>();
 
             Task.Delay(500).GetAwaiter().GetResult();
 
@@ -300,16 +321,31 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         public void Test_PubSubMessenger_StreamMessages()
         {
             // Arrange
+            var pubsub = new PubSubMessenger(new PubSubJsonAuthConfig()
+            {
+                JsonAuthFile = _fixture.CredentialPath,
+                ProjectId = _fixture.ProjectId,
+                ReceiverConfig = new ReceiverConfig
+                {
+                    EntityName = $"{_fixture.TestTopicName}_stream",
+                    CreateEntityIfNotExists = true
+                },
+                Sender = new SenderConfig
+                {
+                    EntityName = $"{_fixture.TestTopicName}_stream",
+                    CreateEntityIfNotExists = true
+                }
+            });
             var lorem = Lorem.GetSentences(10);
             var waitTimer = new Stopwatch();
             var messagesProcessed = 0;
             var processedAfterCancelCount = 0;
 
             // Act
-            _fixture.Messenger.Send(lorem).GetAwaiter().GetResult();
-            _fixture.Messenger.Receive<string>((m) =>
+            pubsub.Send(lorem).GetAwaiter().GetResult();
+            pubsub.Receive<string>((m) =>
             {
-                _fixture.Messenger.Complete(m).GetAwaiter().GetResult();
+                pubsub.Complete(m).GetAwaiter().GetResult();
                 messagesProcessed++;
                 processedAfterCancelCount++;
             }, (e) =>
@@ -323,8 +359,8 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 Task.Delay(500).GetAwaiter().GetResult();
             } while (waitTimer.Elapsed.TotalSeconds < 5);
 
-            _fixture.Messenger.CancelReceive<string>();
-            
+            pubsub.CancelReceive<string>();
+
             Task.Delay(500).GetAwaiter().GetResult();
 
             waitTimer.Reset();
@@ -337,7 +373,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
             // Assert
             messagesProcessed.Should().BeGreaterOrEqualTo(1);
-            processedAfterCancelCount.Should().Be(0); 
+            processedAfterCancelCount.Should().Be(0);
         }
 
         /// <summary>Verify exception when attempt to send but config is null.</summary>
@@ -359,6 +395,19 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             }
         }
 
+        private async Task ClearOutMessages()
+        {
+            List<string> msgs;
+
+            do
+            {
+                // Receive a batch of messages.
+                msgs = await _fixture.Messenger.ReceiveBatch<string>(100);
+
+                // Complete multiple messages at once.
+                _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
+            } while (msgs.Count > 0);
+        }
         // Task SendBatch<T>(IEnumerable<T> messages, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize = 100) 
 
         // void Receive<T>(Action<T> successCallback, Action<Exception> errorCallback, int batchSize = 10) 

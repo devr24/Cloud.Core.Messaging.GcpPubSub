@@ -213,7 +213,7 @@
         public void CancelReceive<T>() where T : class
         {
             _receiveCancellationToken.Cancel();
-            _receiverClient.StopAsync(_receiveCancellationToken.Token);
+            _receiverClient?.StopAsync(_receiveCancellationToken.Token);
             _receiverClient = null;
         }
 
