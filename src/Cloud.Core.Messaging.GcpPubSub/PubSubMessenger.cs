@@ -112,6 +112,16 @@
             }
         }
 
+        public async Task Send<T>(string topicName, T message, KeyValuePair<string, object>[] properties = null) where T : class
+        {
+            await InternalSendBatch(topicName, new List<T> { message }, properties, null, 1);
+        }
+
+        public async Task Send<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null) where T : class
+        {
+            await InternalSendBatch(topicName, messages, properties, null, 1);
+        }
+
         public async Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) where T : class
         {
             await SendBatch(new List<T> { message }, p => properties, 1);
@@ -231,8 +241,7 @@
 
         public IDictionary<string, object> ReadProperties<T>(T message) where T : class
         {
-            var entityMessage = message as IMessageEntity<T>;
-            T msg = entityMessage == null ? message : entityMessage.Body;
+            T msg = !(message is IMessageEntity<T> entityMessage) ? message : entityMessage.Body;
 
             return ReadProperties(Messages[msg]?.Message);
         }
@@ -270,15 +279,13 @@
 
         public Task Abandon<T>(T message, KeyValuePair<string, object>[] propertiesToModify = null) where T : class
         {
-            var entityMessage = message as IMessageEntity<T>;
-            T msg = entityMessage == null ? message : entityMessage.Body;
+            T msg = !(message is IMessageEntity<T> entityMessage) ? message : entityMessage.Body;
             return Task.FromResult(Messages.TryRemove(msg, out _));
         }
 
         public async Task Error<T>(T message, string reason = null) where T : class
         {
-            var entityMessage = message as IMessageEntity<T>;
-            T msg = entityMessage == null ? message : entityMessage.Body;
+            T msg = !(message is IMessageEntity<T> entityMessage) ? message : entityMessage.Body;
 
             var props = ReadProperties(message);
             props.TryAdd("ErrorReason", reason);
@@ -338,7 +345,7 @@
             // Build receiverConfig.
             if (!_createdReceiverTopic && Config.ReceiverConfig != null && Config.ReceiverConfig.CreateEntityIfNotExists)
             {
-                ((PubSubManager)EntityManager).CreateTopic(Config.ProjectId, Config.ReceiverConfig.EntityName, Config.ReceiverConfig.DeadLetterEntityName,
+                ((PubSubManager)EntityManager).CreateTopic(Config.ReceiverConfig.EntityName, Config.ReceiverConfig.DeadLetterEntityName,
                     Config.ReceiverConfig.EntitySubscriptionName, Config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
                 _createdReceiverTopic = true;
             }
@@ -346,7 +353,7 @@
             // Build sender.
             if (!_createdSenderTopic && Config.Sender != null && Config.Sender.CreateEntityIfNotExists)
             {
-                ((PubSubManager)EntityManager).CreateTopic(Config.ProjectId, Config.Sender.EntityName, Config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
+                ((PubSubManager)EntityManager).CreateTopic(Config.Sender.EntityName, Config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
                 _createdSenderTopic = true;
             }
         }
@@ -440,7 +447,7 @@
 
                 var props = ReadProperties(message.Message);
 
-                batch.Add(new PubSubEntity<T> { Body = typedContent, Properties = props });
+                batch.Add(new PubSubMessageEntity<T> { Body = typedContent, Properties = props });
             }
 
             return batch;

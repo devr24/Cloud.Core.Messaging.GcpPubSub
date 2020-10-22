@@ -394,31 +394,5 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 ((PubSubMessenger)_fixture.Messenger).Config.Sender = sender;
             }
         }
-
-        private async Task ClearOutMessages()
-        {
-            List<string> msgs;
-
-            do
-            {
-                // Receive a batch of messages.
-                msgs = await _fixture.Messenger.ReceiveBatch<string>(100);
-
-                // Complete multiple messages at once.
-                _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
-            } while (msgs.Count > 0);
-        }
-        // Task SendBatch<T>(IEnumerable<T> messages, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize = 100) 
-
-        // void Receive<T>(Action<T> successCallback, Action<Exception> errorCallback, int batchSize = 10) 
-
-
-        // IObservable<T> StartReceive<T>(int batchSize = 10) 
-
-        // void CancelReceive<T>() 
-
-        // Task UpdateReceiver(string entityName, string entitySubscriptionName = null, bool createIfNotExists = false, KeyValuePair<string, string>? entityFilter = null, string entityDeadLetterName = null)
-
-        // Task Error<T>(T message, string reason = null)
     }
 }

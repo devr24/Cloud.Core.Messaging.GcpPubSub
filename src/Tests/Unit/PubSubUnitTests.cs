@@ -16,7 +16,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
         public void Test_PubSubEnity_GetPropertiesTyped()
         {
             // Arrange
-            var pubSubEntity = new PubSubEntity<TestClass>
+            var pubSubEntity = new PubSubMessageEntity<TestClass>
             {
                 Body = new TestClass { Property1 = "PropTest" },
                 Properties = new Dictionary<string, object>
@@ -196,6 +196,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             serviceCollection.Clear();
         }
 
+        /// <summary>Verify the methods that should throw not implemented exceptions.</summary>
         [Fact]
         public void Test_PubSubMessenger_NotImplemented()
         {
@@ -203,13 +204,23 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             using var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
             
             // Act/Assert
+            // Messenger methods.
             Assert.Throws<NotImplementedException>(() => pubSub.GetSignedAccessUrl(null));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.Defer(new[] {""}, null));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatch<string>(new List<long> { 1 }));
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }));
+
+            // Manager methods.
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetReceiverMessageCount());
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetSenderEntityUsagePercentage());
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetSenderMessageCount());
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.IsReceiverEntityDisabled());
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.IsSenderEntityDisabled());
+
             pubSub.Dispose();
         }
 
+        /// <summary>Verify a message is abandoned as expected.</summary>
         [Fact]
         public void Test_PubSubMessenger_Abandon()
         {
@@ -225,12 +236,13 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             pubSub.Messages.ContainsKey(test).Should().BeFalse();
         }
 
+        /// <summary>Verify a message entity is abandoned as expected.</summary>
         [Fact]
         public void Test_PubSubMessenger_AbandonMessageEntity()
         {
             // Arrange
             using var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
-            var test = new PubSubEntity<string> {Body = "test"};
+            var test = new PubSubMessageEntity<string> {Body = "test"};
 
             // Act
             pubSub.Messages.AddOrUpdate(test.Body, null);

@@ -19,7 +19,7 @@
         /// Gets or sets the project identifier.
         /// </summary>
         /// <value>The project identifier.</value>
-        public string ProjectId
+        public virtual string ProjectId
         {
             get => _projectId; 
             set
@@ -150,8 +150,17 @@
         public bool CreateEntityIfNotExists { get; set; }
     }
 
+    /// <summary>
+    /// Class PubSub Json Authentication Configuration.  If this is not used, the default google auth is used.
+    /// Implements the <see cref="PubSubConfig" />
+    /// </summary>
+    /// <seealso cref="PubSubConfig" />
     public class PubSubJsonAuthConfig : PubSubConfig
     {
+        /// <summary>
+        /// Gets or sets the json authentication file location.
+        /// </summary>
+        /// <value>The json authentication file.</value>
         [Required]
         public string JsonAuthFile { get; set; }
     }
