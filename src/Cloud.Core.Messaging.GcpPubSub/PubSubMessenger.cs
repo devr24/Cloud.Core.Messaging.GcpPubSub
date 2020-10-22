@@ -124,7 +124,7 @@
         /// <returns>System.Threading.Tasks.Task.</returns>
         public async Task Send<T>(string topicName, T message, KeyValuePair<string, object>[] properties = null) where T : class
         {
-            await InternalSendBatch(topicName, new List<T> { message }, properties, null, 1);
+            await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), new List<T> { message }, properties, null, 1);
         }
 
         /// <summary>
@@ -137,7 +137,7 @@
         /// <returns>System.Threading.Tasks.Task.</returns>
         public async Task Send<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null) where T : class
         {
-            await InternalSendBatch(topicName, messages, properties, null, 1);
+            await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), messages, properties, null, 1);
         }
 
         /// <summary>
@@ -327,8 +327,8 @@
         /// <returns>Task.</returns>
         public Task UpdateReceiver(string entityName, string entitySubscriptionName = null, KeyValuePair<string, string>? entityFilter = null)
         {
-            Config.ReceiverConfig.EntityName = entityName;
             Config.ReceiverConfig.EntitySubscriptionName = entitySubscriptionName;
+            Config.ReceiverConfig.EntityName = entityName;
 
             _receiverClient?.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
             _receiverClient = null;
@@ -581,12 +581,12 @@
             var batch = new List<IMessageEntity<T>>();
 
             // Determine whether to read from deal-letter topic or normal topic, depending on the flag.
-            var topicName = Config.ReceiverConfig.ReadFromErrorEntity
-                ? Config.ReceiverConfig.DeadLetterEntityName
+            var subscriptionName = Config.ReceiverConfig.ReadFromErrorEntity
+                ? Config.ReceiverConfig.EntityDeadLetterSubscriptionName
                 : Config.ReceiverConfig.EntitySubscriptionName;
 
             // Make the read request to Gcp PubSub.
-            PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(Config.ProjectId, topicName), false, batchSize);
+            PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(Config.ProjectId, subscriptionName), false, batchSize);
             var messages = response.ReceivedMessages;
 
             if (!messages.Any())

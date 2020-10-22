@@ -394,5 +394,38 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 ((PubSubMessenger)_fixture.Messenger).Config.Sender = sender;
             }
         }
+
+        /// <summary>Verify a sent message can then be received and completed.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_UpdateReceiver()
+        {
+            // Arrange
+            var lorem1 = Lorem.GetSentence(5);
+            var lorem2 = Lorem.GetSentence(5);
+            PubSubManager manger = _fixture.Messenger.EntityManager as PubSubManager;
+
+            // Act
+            // Create topics
+            manger.CreateTopicIfNotExists("topic2").GetAwaiter().GetResult();
+            manger.CreateSubscription("topic2", "topic2_default").GetAwaiter().GetResult();
+
+            // Send to topics
+            _fixture.Messenger.Send(lorem1).GetAwaiter().GetResult();
+            ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2).GetAwaiter().GetResult();
+            ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2, new []{  new KeyValuePair<string, object>("prop1","prop1val"),  }).GetAwaiter().GetResult();
+
+            // Read from topic 1
+            var msg1 = _fixture.Messenger.ReceiveOne<string>();
+            _fixture.Messenger.Complete(msg1).GetAwaiter().GetResult();
+
+            // Update receiver to read from topic 2
+            _fixture.ReactiveMessenger.UpdateReceiver("topic2");
+            var msg2 = _fixture.Messenger.ReceiveOne<string>();
+            _fixture.Messenger.Complete(msg2).GetAwaiter().GetResult();
+
+            // Assert
+            msg1.Should().Be(lorem1);
+            msg2.Should().Be(lorem2);
+        }
     }
 }

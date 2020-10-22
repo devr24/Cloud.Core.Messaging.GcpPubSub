@@ -111,6 +111,12 @@
         public string EntitySubscriptionName { get; set; }
 
         /// <summary>
+        /// Gets the name of the dead letter subscription.
+        /// </summary>
+        /// <value>The name of the dead letter subscription.</value>
+        public string EntityDeadLetterSubscriptionName => $"{DeadLetterEntityName}_default";
+
+        /// <summary>
         /// Gets or sets the entity filter that's applied if using a topic.
         /// </summary>
         /// <value>The entity filter.</value>

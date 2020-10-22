@@ -41,14 +41,16 @@
         {
             // Create the topic and the dead-letter equivalent.
             CreateTopicIfNotExists(topicName).GetAwaiter().GetResult();
-            CreateTopicIfNotExists(deadletterName).GetAwaiter().GetResult();
+            if (!deadletterName.IsNullOrEmpty())
+                CreateTopicIfNotExists(deadletterName).GetAwaiter().GetResult();
 
             if (subscriptionName.IsNullOrEmpty())
                 return;
 
             // If a subscription has been requested for creation, create. Along with dead-letter subscription.
             await CreateSubscription(topicName, subscriptionName, deadletterName, filter);
-            await CreateSubscription(deadletterName, deadletterName, null, null);
+            if (!deadletterName.IsNullOrEmpty())
+                await CreateSubscription(deadletterName, deadletterName, null, null);
         }
 
         /// <summary>
@@ -58,7 +60,7 @@
         /// <param name="subscriptionName">Name of the subscription.</param>
         /// <param name="deadletterTopic">The deadletter topic.</param>
         /// <param name="filter">The filter.</param>
-        public async Task CreateSubscription(string topicName, string subscriptionName, string deadletterTopic, string filter)
+        public async Task CreateSubscription(string topicName, string subscriptionName, string deadletterTopic = null, string filter = null)
         {
             var createSubscription = new Subscription {
                 SubscriptionName = new SubscriptionName(_projectId, subscriptionName),
