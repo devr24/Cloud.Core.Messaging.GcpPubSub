@@ -342,7 +342,6 @@ namespace Cloud.Core.Messaging.GcpPubSub
         }
         #endregion
 
-
         internal void InitialiseClients()
         {
             if (_initialisedClients) return;
@@ -382,6 +381,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             _createdTopics = true;
         }
 
+        [ExcludeFromCodeCoverage]
         internal ChannelCredentials GetCredentials()
         {
             ChannelCredentials channelCredentials = null;
@@ -454,7 +454,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(Config.ProjectId, topicName), false, batchSize);
             var messages = response.ReceivedMessages;
 
-            if (messages == null)
+            if (!messages.Any())
                 return null;
 
             foreach (var message in messages)

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using Cloud.Core.Testing;
 using Cloud.Core.Testing.Lorem;
 using FluentAssertions;
@@ -214,7 +216,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             } while (msgs.Count > 0);
         }
 
-        /// <summary>Verify a message can be abandoned and then picked back up.</summary>
+        /// <summary>Verify a message can be errored and then picked up from dead-letter topic.</summary>
         [Fact]
         public void Test_PubSubMessenger_ErrorMessage()
         {
@@ -237,14 +239,79 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
             var msg = _fixture.Messenger.ReceiveOne<string>();
             _fixture.Messenger.Error(msg, "Something went wrong!").GetAwaiter().GetResult();
-            var deadletterMsg = deadletterReader.ReceiveOne<string>();
+            var deadletterMsg = deadletterReader.ReceiveOneEntity<string>();
 
             // Assert
-            deadletterMsg.Should().NotBeNullOrEmpty();
-            deadletterMsg.Should().BeEquivalentTo(lorem);
+            deadletterMsg.Body.Should().NotBeNullOrEmpty();
+            deadletterMsg.Body.Should().BeEquivalentTo(lorem);
+            deadletterMsg.Properties["ErrorReason"].Should().NotBeNull();
+        }
+        
+        /// <summary>Verify messages can be streamed using observables.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_StreamMessagesObservable()
+        {
+            // Arrange
+            var lorem = Lorem.GetSentences(50);
+            var waitTimer = new Stopwatch();
+            var messagesProcessed = 0;
+
+            // Act
+            _fixture.ReactiveMessenger.Send(lorem).GetAwaiter().GetResult();
+            _fixture.ReactiveMessenger.StartReceive<string>().Subscribe((m) =>
+            {
+                _fixture.Messenger.Complete(m).GetAwaiter().GetResult();
+                messagesProcessed++;
+            }, (e) =>
+            {
+
+            });
+            waitTimer.Start();
+
+            do
+            {
+                Task.Delay(500).GetAwaiter().GetResult();
+            } while (waitTimer.Elapsed.TotalSeconds < 20);
+
+            _fixture.Messenger.CancelReceive<string>();
+
+            // Assert
+            messagesProcessed.Should().BeGreaterOrEqualTo(10);
         }
 
+        /// <summary>Verify messages can be streamed using callbacks.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_StreamMessages()
+        {
+            // Arrange
+            var lorem = Lorem.GetSentences(50);
+            var waitTimer = new Stopwatch();
+            var messagesProcessed = 0;
 
+            // Act
+            _fixture.Messenger.Send(lorem).GetAwaiter().GetResult();
+            _fixture.Messenger.Receive<string>((m) =>
+            {
+                _fixture.Messenger.Complete(m).GetAwaiter().GetResult();
+                messagesProcessed++;
+            }, (e) =>
+            {
+
+            });
+            waitTimer.Start();
+
+            do
+            {
+                Task.Delay(500).GetAwaiter().GetResult();
+            } while (waitTimer.Elapsed.TotalSeconds < 20);
+
+            _fixture.Messenger.CancelReceive<string>();
+
+            // Assert
+            messagesProcessed.Should().BeGreaterOrEqualTo(10);
+        }
+
+        /// <summary>Verify exception when attempt to send but config is null.</summary>
         [Fact]
         public void Test_PubSubMessenger_SendException()
         {
