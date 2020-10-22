@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Cloud.Core.Testing;
 using Cloud.Core.Testing.Lorem;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
-using Microsoft.VisualBasic;
 using Xunit;
 
 namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
@@ -90,6 +90,31 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 new KeyValuePair<string, object>("second", "two")
             }).GetAwaiter().GetResult();
 
+            var msg = _fixture.Messenger.ReceiveOne<string>();
+            var props = _fixture.Messenger.ReadProperties(msg);
+
+            _fixture.Messenger.Complete(msg).GetAwaiter().GetResult();
+
+            // Assert
+            msg.Should().BeEquivalentTo(lorem);
+            props["first"].Should().Be("1");
+            props["second"].Should().Be("two");
+        }
+
+        /// <summary>Verify a message sent with properties can be received with properties intact.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_SendMessageEntityWithProps()
+        {
+            // Arrange
+            var lorem = Lorem.GetSentence(5);
+
+            // Act
+            _fixture.Messenger.Send(lorem, new KeyValuePair<string, object>[]
+            {
+                new KeyValuePair<string,object>("first", 1),
+                new KeyValuePair<string, object>("second", "two")
+            }).GetAwaiter().GetResult();
+
             var msg = _fixture.Messenger.ReceiveOneEntity<string>();
 
             _fixture.Messenger.Complete(msg).GetAwaiter().GetResult();
@@ -100,9 +125,9 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             msg.Properties["second"].Should().Be("two");
         }
 
-        /// <summary>Verify a sent message can then be received and completed.</summary>
+        /// <summary>Verify a batch of messages, with properties, can then be sent.</summary>
         [Fact]
-        public void Test_PubSubMessenger_SendMessageBatch()
+        public void Test_PubSubMessenger_SendMessageBatchWithProps()
         {
             // Arrange
             List<string> msgs;
@@ -120,6 +145,33 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             {
                 // Receive a batch of messages.
                 msgs = _fixture.Messenger.ReceiveBatch<string>(batchSize).GetAwaiter().GetResult();
+                
+                // Complete multiple messages at once.
+                _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
+
+                // Assert
+                if (msgs.Count > 0)
+                    msgs.Count.Should().Be(batchSize);
+
+            } while (msgs.Count > 0);
+        }
+
+        /// <summary>Verify a batch of messages can be sent.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_SendMessageBatch()
+        {
+            // Arrange
+            List<string> msgs;
+            var batchSize = 10;
+            var lorem = Lorem.GetParagraphs(50);
+
+            // Act
+            _fixture.Messenger.SendBatch(lorem, batchSize).GetAwaiter().GetResult();
+
+            do
+            {
+                // Receive a batch of messages.
+                msgs = _fixture.Messenger.ReceiveBatch<string>(batchSize).GetAwaiter().GetResult();
 
                 // Complete multiple messages at once.
                 _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
@@ -131,9 +183,23 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             } while (msgs.Count > 0);
         }
 
-        // Task SendBatch<T>(IEnumerable<T> messages, int batchSize = 10)
-
-        // Task SendBatch<T>(IEnumerable<T> messages, KeyValuePair<string, object>[] properties, int batchSize = 100)
+        [Fact]
+        public void Test_PubSubMessenger_SendException()
+        {
+            // Arrange
+            var sender = ((PubSubMessenger)_fixture.Messenger).Config.Sender;
+            try
+            {
+                ((PubSubMessenger)_fixture.Messenger).Config.Sender = null;
+                
+                // Act/Assert
+                Assert.ThrowsAsync<InvalidOperationException>(async () => await _fixture.Messenger.Send("test"));
+            }
+            finally
+            {
+                ((PubSubMessenger)_fixture.Messenger).Config.Sender = sender;
+            }
+        }
 
         // Task SendBatch<T>(IEnumerable<T> messages, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize = 100) 
 
@@ -153,23 +219,11 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
         // Task UpdateReceiver(string entityName, string entitySubscriptionName = null, bool createIfNotExists = false, KeyValuePair<string, string>? entityFilter = null, string entityDeadLetterName = null)
 
-        // IDictionary<string, object> ReadProperties<T>(T msg)
-
-        // Task Complete<T>(T message)
-
-        // Task CompleteAll<T>(IEnumerable<T> messages)
-
         // Task Abandon<T>(T message, KeyValuePair<string, object>[] propertiesToModify)
 
         // Task Error<T>(T message, string reason = null)
 
-        // string GetSignedAccessUrl(ISignedAccessConfig accessConfig)
-
-        // Task Defer<T>(T message, KeyValuePair<string, object>[] propertiesToModify) 
-
-        // Task<List<T>> ReceiveDeferredBatch<T>(IEnumerable<long> identities)
-
-        // Task<List<IMessageEntity<T>>> ReceiveDeferredBatchEntity<T>(IEnumerable<long> identities)
+ 
 
 
 

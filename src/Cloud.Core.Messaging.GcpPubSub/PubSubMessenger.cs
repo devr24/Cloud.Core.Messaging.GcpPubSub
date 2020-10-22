@@ -35,7 +35,6 @@ namespace Cloud.Core.Messaging.GcpPubSub
         private readonly ConcurrentDictionary<object, ReceivedMessage> _messages = new ConcurrentDictionary<object, ReceivedMessage>(ObjectReferenceEqualityComparer<object>.Default);
         private readonly ISubject<object> _messagesIn = new Subject<object>();
         private readonly CancellationTokenSource _receiveCancellationToken = new CancellationTokenSource();
-        private readonly PubSubConfig _config;
         private readonly ILogger _logger;
         private readonly string _jsonAuthFile;
 
@@ -45,6 +44,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
         private PubSubManager _pubSubManager;
         private bool _createdTopics;
         private bool _initialisedClients;
+
+        internal readonly PubSubConfig Config;
 
         internal SubscriberServiceApiClient ManagementClient
         {
@@ -85,7 +86,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             // Validate configuration.
             config.ThrowIfInvalid();
              
-            _config = config;
+            Config = config;
             _logger = logger;
 
             Name = config.ProjectId;
@@ -101,7 +102,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
             // Validate configuration.
             config.ThrowIfInvalid();
 
-            _config = config;
+            Config = config;
             _logger = logger;
             _jsonAuthFile = config.JsonAuthFile;
 
@@ -125,11 +126,12 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public async Task Send<T>(string topicName, T message, KeyValuePair<string, object>[] properties = null) where T : class
         {
-            await InternalSendBatch(new TopicName(_config.ProjectId, topicName).ToString(), new List<T> { message }, properties, null, 1);
+            await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), new List<T> { message }, properties, null, 1);
         }
+
         public async Task Send<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null, int batchSize = 100) where T : class
         {
-            await InternalSendBatch(new TopicName(_config.ProjectId, topicName).ToString(), messages, properties, null, batchSize);
+            await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), messages, properties, null, batchSize);
         }
 
         public async Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) where T : class
@@ -149,10 +151,10 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public async Task SendBatch<T>(IEnumerable<T> messages, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize = 100) where T : class
         {
-            if (_config.Sender == null)
+            if (Config.Sender == null)
                 throw new InvalidOperationException("Sender must be configured to send messages");
 
-            await InternalSendBatch(_config.Sender.TopicRelativeName, messages, null, setProps, batchSize);
+            await InternalSendBatch(Config.Sender.TopicRelativeName, messages, null, setProps, batchSize);
         }
         
         public T ReceiveOne<T>() where T : class
@@ -226,8 +228,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         public Task UpdateReceiver(string entityName, string entitySubscriptionName = null, KeyValuePair<string, string>? entityFilter = null)
         {
-            _config.ReceiverConfig.EntityName= entityName;
-            _config.ReceiverConfig.EntitySubscriptionName = entitySubscriptionName;
+            Config.ReceiverConfig.EntityName= entityName;
+            Config.ReceiverConfig.EntitySubscriptionName = entitySubscriptionName;
 
             _receiveCancellationToken.Cancel();
             _receiverClient.StopAsync(_receiveCancellationToken.Token);
@@ -271,7 +273,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             if (ackIds.Any())
             {
-                await ManagementClient.AcknowledgeAsync(new AcknowledgeRequest { AckIds = { ackIds }, Subscription = new SubscriptionName(_config.ProjectId, _config.ReceiverConfig.EntitySubscriptionName).ToString() });
+                await ManagementClient.AcknowledgeAsync(new AcknowledgeRequest { AckIds = { ackIds }, Subscription = new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.EntitySubscriptionName).ToString() });
             }
         }
 
@@ -292,7 +294,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             // Complete the message, then send on to dead-letter queue.
             await CompleteAll(new[] { msg });
-            await InternalSendBatch(_config.ReceiverConfig.TopicDeadletterRelativeName, new List<T> { msg }, props.ToArray(), null, 100);
+            await InternalSendBatch(Config.ReceiverConfig.TopicDeadletterRelativeName, new List<T> { msg }, props.ToArray(), null, 100);
         }
 
         public string GetSignedAccessUrl(ISignedAccessConfig accessConfig)
@@ -329,8 +331,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
             _managerClient ??= new SubscriberServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
             _publisherClient ??= new PublisherServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
-            _pubSubManager ??= new PubSubManager(_config.ProjectId, _managerClient, _publisherClient);
-            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(_config.ProjectId, _config.ReceiverConfig.EntitySubscriptionName),
+            _pubSubManager ??= new PubSubManager(Config.ProjectId, _managerClient, _publisherClient);
+            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.EntitySubscriptionName),
                 new SubscriberClient.ClientCreationSettings(credentials: channelCredentials)).GetAwaiter().GetResult();
 
             _initialisedClients = true;
@@ -342,16 +344,16 @@ namespace Cloud.Core.Messaging.GcpPubSub
                 return;
 
             // Build receiverConfig.
-            if (_config.ReceiverConfig != null && _config.ReceiverConfig.CreateEntityIfNotExists)
+            if (Config.ReceiverConfig != null && Config.ReceiverConfig.CreateEntityIfNotExists)
             {
-                _pubSubManager.CreateTopic(_config.ProjectId, _config.ReceiverConfig.EntityName, _config.ReceiverConfig.DeadLetterEntityName,
-                    _config.ReceiverConfig.EntitySubscriptionName, _config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
+                _pubSubManager.CreateTopic(Config.ProjectId, Config.ReceiverConfig.EntityName, Config.ReceiverConfig.DeadLetterEntityName,
+                    Config.ReceiverConfig.EntitySubscriptionName, Config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
             }
 
             // Build sender.
-            if (_config.Sender != null && _config.Sender.CreateEntityIfNotExists)
+            if (Config.Sender != null && Config.Sender.CreateEntityIfNotExists)
             {
-                _pubSubManager.CreateTopic(_config.ProjectId, _config.Sender.EntityName, _config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
+                _pubSubManager.CreateTopic(Config.ProjectId, Config.Sender.EntityName, Config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
             }
 
             _createdTopics = true;
@@ -422,7 +424,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
         {
             var batch = new List<IMessageEntity<T>>();
 
-            PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(_config.ProjectId, _config.ReceiverConfig.EntitySubscriptionName), false, batchSize);
+            PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.EntitySubscriptionName), false, batchSize);
             var messages = response.ReceivedMessages;
 
             if (messages == null)

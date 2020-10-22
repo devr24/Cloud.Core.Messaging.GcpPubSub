@@ -1,12 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Cloud.Core.Exceptions;
-using Cloud.Core.Messaging.GcpPubSub;
 using Cloud.Core.Testing;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
+namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
 {
     [IsUnit]
     public class PubSubUnitTests
@@ -194,6 +194,19 @@ namespace Cloud.Core.Messenger.PubSubMessenger.Tests.Unit
             serviceCollection.AddPubSubSingleton<IReactiveMessenger>(new PubSubJsonAuthConfig { ProjectId = "test", JsonAuthFile = "test" });
             serviceCollection.ContainsService(typeof(IReactiveMessenger)).Should().BeTrue();
             serviceCollection.Clear();
+        }
+
+        [Fact]
+        public void Test_PubSubMessenger_NotImplemented()
+        {
+            // Arrange
+            var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
+            
+            // Act/Assert
+            Assert.Throws<NotImplementedException>(() => pubSub.GetSignedAccessUrl(null));
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.Defer(new[] {""}, null));
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatch<string>(new List<long> { 1 }));
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }));
         }
 
         private class TestClass
