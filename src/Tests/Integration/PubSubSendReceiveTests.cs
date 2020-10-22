@@ -139,6 +139,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             List<string> msgs;
             var batchSize = 10;
             var lorem = Lorem.GetParagraphs(50);
+            var batchCounter = 0;
 
             // Act
             _fixture.Messenger.SendBatch(lorem, new KeyValuePair<string, object>[]
@@ -155,11 +156,13 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 // Complete multiple messages at once.
                 _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
 
-                // Assert
-                if (msgs.Count > 0)
-                    msgs.Count.Should().Be(batchSize);
+                if (msgs.Count == 50)
+                    batchCounter++;
 
             } while (msgs.Count > 0);
+            
+            // Assert
+            batchCounter.Should().BeGreaterThan(0);
         }
 
         /// <summary>Verify a batch of messages can be received.</summary>

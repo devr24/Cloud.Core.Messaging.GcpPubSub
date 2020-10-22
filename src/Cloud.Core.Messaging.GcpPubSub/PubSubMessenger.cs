@@ -1,7 +1,4 @@
-﻿using System.Diagnostics;
-using Cloud.Core.Extensions;
-
-namespace Cloud.Core.Messaging.GcpPubSub
+﻿namespace Cloud.Core.Messaging.GcpPubSub
 {
     using System;
     using System.Collections.Concurrent;
@@ -14,11 +11,12 @@ namespace Cloud.Core.Messaging.GcpPubSub
     using System.Reactive.Subjects;
     using System.Threading;
     using System.Threading.Tasks;
-    using Google.Apis.Auth.OAuth2;
-    using Grpc.Auth;
     using Comparer;
+    using Extensions;
+    using Google.Apis.Auth.OAuth2;
     using Google.Cloud.PubSub.V1;
     using Google.Protobuf;
+    using Grpc.Auth;
     using Grpc.Core;
     using Microsoft.Extensions.Logging;
     using Newtonsoft.Json;
@@ -41,8 +39,9 @@ namespace Cloud.Core.Messaging.GcpPubSub
         private SubscriberClient _receiverClient;
         private SubscriberServiceApiClient _managerClient;
         private PubSubManager _pubSubManager;
-        private bool _createdTopics;
-        private bool _initialisedClients;
+        private bool _createdReceiverTopic;
+        private bool _createdSenderTopic;
+        private ChannelCredentials _credentials;
 
         internal readonly PubSubConfig Config;
         internal readonly ConcurrentDictionary<object, ReceivedMessage> Messages = new ConcurrentDictionary<object, ReceivedMessage>(ObjectReferenceEqualityComparer<object>.Default);
@@ -51,18 +50,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
         {
             get
             {
-                InitialiseClients();
+                _managerClient ??= new SubscriberServiceApiClientBuilder { ChannelCredentials = GetCredentials() }.Build();
                 return _managerClient;
-            }
-        }
-
-        internal SubscriberClient ReceiverClient
-        {
-            get
-            {
-                InitialiseClients();
-                CreateIfNotExists();
-                return _receiverClient;
             }
         }
 
@@ -70,8 +59,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
         {
             get
             {
-                InitialiseClients();
-                CreateIfNotExists();
+                _publisherClient ??= new PublisherServiceApiClientBuilder { ChannelCredentials = GetCredentials() }.Build();
                 return _publisherClient;
             }
         }
@@ -119,19 +107,9 @@ namespace Cloud.Core.Messaging.GcpPubSub
         {
             get
             {
-                InitialiseClients();
+                _pubSubManager ??= new PubSubManager(Config.ProjectId, ManagementClient, PublisherClient);
                 return _pubSubManager;
             }
-        }
-
-        public async Task Send<T>(string topicName, T message, KeyValuePair<string, object>[] properties = null) where T : class
-        {
-            await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), new List<T> { message }, properties, null, 1);
-        }
-
-        public async Task Send<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null, int batchSize = 100) where T : class
-        {
-            await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), messages, properties, null, batchSize);
         }
 
         public async Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) where T : class
@@ -169,9 +147,26 @@ namespace Cloud.Core.Messaging.GcpPubSub
             return result.FirstOrDefault();
         }
 
+        public async Task<List<T>> ReceiveBatch<T>(int batchSize) where T : class
+        {
+            var results = await ReceiveBatchEntity<T>(batchSize);
+            return results.Select(b => b.Body).ToList();
+        }
+
+        public async Task<List<IMessageEntity<T>>> ReceiveBatchEntity<T>(int batchSize) where T : class
+        {
+            return await InternalReceiveBatch<T>(batchSize);
+        }
+
         public void Receive<T>(Action<T> successCallback, Action<Exception> errorCallback, int batchSize = 10) where T : class
         {
-            ReceiverClient.StartAsync((message, cancel) =>
+            CreateIfNotExists();
+            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.ReadFromErrorEntity
+                    ? Config.ReceiverConfig.DeadLetterEntityName
+                    : Config.ReceiverConfig.EntitySubscriptionName),
+                new SubscriberClient.ClientCreationSettings(credentials: GetCredentials())).GetAwaiter().GetResult();
+
+            _receiverClient.StartAsync((message, cancel) =>
             {
                 if (!cancel.IsCancellationRequested)
                 {
@@ -191,22 +186,17 @@ namespace Cloud.Core.Messaging.GcpPubSub
             });
         }
 
-        public async Task<List<T>> ReceiveBatch<T>(int batchSize) where T : class
-        {
-            var results = await ReceiveBatchEntity<T>(batchSize);
-            return results.Select(b => b.Body).ToList();
-        }
-
-        public async Task<List<IMessageEntity<T>>> ReceiveBatchEntity<T>(int batchSize) where T : class
-        {
-            return await InternalReceiveBatch<T>(batchSize);
-        }
-
         public IObservable<T> StartReceive<T>(int batchSize = 10) where T : class
         {
+            CreateIfNotExists();
+            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.ReadFromErrorEntity
+                    ? Config.ReceiverConfig.DeadLetterEntityName
+                    : Config.ReceiverConfig.EntitySubscriptionName),
+                new SubscriberClient.ClientCreationSettings(credentials: GetCredentials())).GetAwaiter().GetResult();
+
             IObserver<T> messageIn = _messagesIn.AsObserver();
 
-            ReceiverClient.StartAsync((message, cancel) =>
+            _receiverClient.StartAsync((message, cancel) =>
             {
                 if (!cancel.IsCancellationRequested)
                 {
@@ -223,7 +213,8 @@ namespace Cloud.Core.Messaging.GcpPubSub
         public void CancelReceive<T>() where T : class
         {
             _receiveCancellationToken.Cancel();
-            ReceiverClient.StopAsync(_receiveCancellationToken.Token);
+            _receiverClient.StopAsync(_receiveCancellationToken.Token);
+            _receiverClient = null;
         }
 
         public Task UpdateReceiver(string entityName, string entitySubscriptionName = null, KeyValuePair<string, string>? entityFilter = null)
@@ -342,71 +333,54 @@ namespace Cloud.Core.Messaging.GcpPubSub
         }
         #endregion
 
-        internal void InitialiseClients()
-        {
-            if (_initialisedClients) return;
-
-            // Get the google credentials.
-            ChannelCredentials channelCredentials = GetCredentials();
-
-            _managerClient ??= new SubscriberServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
-            _publisherClient ??= new PublisherServiceApiClientBuilder { ChannelCredentials = channelCredentials }.Build();
-            _pubSubManager ??= new PubSubManager(Config.ProjectId, _managerClient, _publisherClient);
-            _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.ReadFromErrorEntity
-                    ? Config.ReceiverConfig.DeadLetterEntityName
-                    : Config.ReceiverConfig.EntitySubscriptionName),
-                new SubscriberClient.ClientCreationSettings(credentials: channelCredentials)).GetAwaiter().GetResult();
-
-            _initialisedClients = true;
-        }
-
         internal void CreateIfNotExists()
         {
-            if (_createdTopics)
-                return;
-
             // Build receiverConfig.
-            if (Config.ReceiverConfig != null && Config.ReceiverConfig.CreateEntityIfNotExists)
+            if (!_createdReceiverTopic && Config.ReceiverConfig != null && Config.ReceiverConfig.CreateEntityIfNotExists)
             {
-                _pubSubManager.CreateTopic(Config.ProjectId, Config.ReceiverConfig.EntityName, Config.ReceiverConfig.DeadLetterEntityName,
+                ((PubSubManager)EntityManager).CreateTopic(Config.ProjectId, Config.ReceiverConfig.EntityName, Config.ReceiverConfig.DeadLetterEntityName,
                     Config.ReceiverConfig.EntitySubscriptionName, Config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
+                _createdReceiverTopic = true;
             }
 
             // Build sender.
-            if (Config.Sender != null && Config.Sender.CreateEntityIfNotExists)
+            if (!_createdSenderTopic && Config.Sender != null && Config.Sender.CreateEntityIfNotExists)
             {
-                _pubSubManager.CreateTopic(Config.ProjectId, Config.Sender.EntityName, Config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
+                ((PubSubManager)EntityManager).CreateTopic(Config.ProjectId, Config.Sender.EntityName, Config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
+                _createdSenderTopic = true;
             }
-
-            _createdTopics = true;
         }
 
         [ExcludeFromCodeCoverage]
         internal ChannelCredentials GetCredentials()
         {
-            ChannelCredentials channelCredentials = null;
-
-            if (!_jsonAuthFile.IsNullOrEmpty())
+            if (_credentials == null)
             {
-                channelCredentials = GoogleCredential.FromFile(_jsonAuthFile).ToChannelCredentials();
-            }
-            else
-            {
-                // Verify the credentials have been set as expected.
-                var credentialLocation = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
-                if (credentialLocation.IsNullOrEmpty() || File.Exists(credentialLocation) == false)
+                if (!_jsonAuthFile.IsNullOrEmpty())
                 {
-                    throw new InvalidOperationException("Environment variable \"GOOGLE_APPLICATION_CREDENTIALS\" must exist and must point to a valid credential json file");
+                    _credentials = GoogleCredential.FromFile(_jsonAuthFile).ToChannelCredentials();
                 }
+                else
+                {
+                    // Verify the credentials have been set as expected.
+                    var credentialLocation = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+                    if (credentialLocation.IsNullOrEmpty() || File.Exists(credentialLocation) == false)
+                    {
+                        throw new InvalidOperationException(
+                            "Environment variable \"GOOGLE_APPLICATION_CREDENTIALS\" must exist and must point to a valid credential json file");
+                    }
 
-                channelCredentials = GoogleCredential.GetApplicationDefault().ToChannelCredentials();
+                    _credentials = GoogleCredential.GetApplicationDefault().ToChannelCredentials();
+                }
             }
 
-            return channelCredentials;
+            return _credentials;
         }
 
         internal async Task InternalSendBatch<T>(string topic, IEnumerable<T> messages, KeyValuePair<string, object>[] properties, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize) where T : class
         {
+            CreateIfNotExists();
+
             var isByteArray = typeof(T) == typeof(byte[]);
             var publishRequest = new PublishRequest
             {
@@ -445,6 +419,7 @@ namespace Cloud.Core.Messaging.GcpPubSub
 
         internal async Task<List<IMessageEntity<T>>> InternalReceiveBatch<T>(int batchSize) where T : class
         {
+            CreateIfNotExists();
             var batch = new List<IMessageEntity<T>>();
 
             var topicName = Config.ReceiverConfig.ReadFromErrorEntity
