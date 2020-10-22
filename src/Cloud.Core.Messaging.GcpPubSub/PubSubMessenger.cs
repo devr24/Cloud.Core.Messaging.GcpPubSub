@@ -31,7 +31,6 @@
     public class PubSubMessenger : IMessenger, IReactiveMessenger
     {
         private readonly ISubject<object> _messagesIn = new Subject<object>();
-        private readonly CancellationTokenSource _receiveCancellationToken = new CancellationTokenSource();
         private readonly ILogger _logger;
         private readonly string _jsonAuthFile;
         private bool _disposedValue;
@@ -315,8 +314,7 @@
         /// <typeparam name="T">The type of the message that we are cancelling the receive on.</typeparam>
         public void CancelReceive<T>() where T : class
         {
-            _receiveCancellationToken.Cancel();
-            _receiverClient?.StopAsync(_receiveCancellationToken.Token).GetAwaiter().GetResult();
+            _receiverClient?.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
             _receiverClient = null;
         }
 
@@ -327,15 +325,15 @@
         /// <param name="entitySubscriptionName">The name of the subscription on the entity to listen to.</param>
         /// <param name="entityFilter">A filter that will be applied to the entity if created through this method.</param>
         /// <returns>Task.</returns>
-        public async Task UpdateReceiver(string entityName, string entitySubscriptionName = null, KeyValuePair<string, string>? entityFilter = null)
+        public Task UpdateReceiver(string entityName, string entitySubscriptionName = null, KeyValuePair<string, string>? entityFilter = null)
         {
             Config.ReceiverConfig.EntityName = entityName;
             Config.ReceiverConfig.EntitySubscriptionName = entitySubscriptionName;
 
-            _receiveCancellationToken.Cancel();
-            if (_receiverClient != null)
-                await _receiverClient.StopAsync(_receiveCancellationToken.Token);
+            _receiverClient?.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
             _receiverClient = null;
+
+            return Task.FromResult(true);
         }
 
         /// <summary>
