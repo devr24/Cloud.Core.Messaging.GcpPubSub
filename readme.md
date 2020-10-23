@@ -281,7 +281,7 @@ To carry out any create or delete entity, GCP PubSub permissions are required.  
 ## Full working example
 
 ```csharp       
-var messenger = new PubSubMessenger(new PubSubConfig
+IReactiveMessenger messenger = new PubSubMessenger(new PubSubConfig
 {
     ProjectId = _config["GcpProjectId"],
     ReceiverConfig = new ReceiverConfig()
@@ -308,10 +308,7 @@ messenger.StartReceive<string>(10).Subscribe(async message =>
 {
     // Process messages here....
 
-    // Complete the message when finished.
-    await messenger.Abandon(message);   // return message to topic without completing (will be picked up again).
-    await messenger.Error(message);     // deadletter message.
-    await messenger.Complete(message);  // complete and remove the message.
+    // Messages auto complete when dealt with.
 });
 
 // When we no longer need to listen for messages, we can cancel using this:
