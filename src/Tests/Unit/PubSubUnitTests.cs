@@ -347,6 +347,52 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
                             "EntityDeadLetterName: entityName_deadletter, CreateEntityIfNotExists: True");
         }
 
+        /// <summary>Verify PubSubJsonAuthConfig ToString overload works as expected.</summary>
+        [Fact]
+        public void Test_PubSubJsonAuthConfig_ToStringFunctionalityNotSet()
+        {
+            // Arrange
+            var config = new PubSubJsonAuthConfig()
+            {
+                JsonAuthFile = "fileLocation",
+                ProjectId = "12345"
+            };
+
+            // Act
+            var str = config.ToString();
+
+            // Assert
+            str.Should().Be("Auth (jsonFile): fileLocation, ProjectId:12345, ReceiverInfo: [NOT SET], SenderInfo: [NOT SET]");
+        }
+
+        /// <summary>Verify errors are thrown when methods are used in an invalid way.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_InvalidOperation()
+        {
+            // Arrange
+            var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+            {
+                JsonAuthFile = "fileLocation",
+                ProjectId = "12345"
+            });
+
+            // Act/Assert
+            Assert.ThrowsAsync<InvalidOperationException>(async () => await messenger.ReceiveBatchEntity<object>());
+            Assert.Throws<InvalidOperationException>(() => messenger.Receive<object>(null, null));
+            Assert.ThrowsAsync<InvalidOperationException>(() => messenger.ReceiveOne<object>(""));
+            Assert.Throws<InvalidOperationException>(() => messenger.StartReceive<object>());
+            Assert.Throws<InvalidOperationException>(() => messenger.ReceiveOne<object>());
+            
+            // Additional runs here purely to increase code coverage. Not particularly useful tests but it does confirm functionality.
+            messenger.Complete<object>(null).GetAwaiter().GetResult();
+            messenger.CompleteAll(new object[] {null}).GetAwaiter().GetResult();
+            messenger.Abandon(new object());
+            messenger.Error<object>(null).GetAwaiter().GetResult();
+            messenger.Error(new object()).GetAwaiter().GetResult();
+            var props = messenger.ReadProperties<object>(null);
+            props.Should().BeNull();
+        }
+
         private class TestClass
         {
             public string Property1 { get; set; }

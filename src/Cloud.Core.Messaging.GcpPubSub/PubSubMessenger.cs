@@ -265,7 +265,7 @@
         /// <param name="batchSize">Size of the batch.</param>
         /// <returns>IMessageEntity&lt;T&gt;.</returns>
         /// <exception cref="InvalidOperationException">ReceiverConfig must be set to read messages.</exception>
-        public async Task<List<IMessageEntity<T>>> ReceiveBatchEntity<T>(int batchSize) where T : class
+        public async Task<List<IMessageEntity<T>>> ReceiveBatchEntity<T>(int batchSize = 10) where T : class
         {
             // Ensure config is setup.
             if (Config.ReceiverConfig == null)
@@ -401,16 +401,7 @@
             // Null safe guard.
             if (message == null)
                 return null;
-
-
-            //// This conversion picks up IMessageEntity messages, because their body is used for the key in the message dictionary.
-            //if (message != null && !Messages.TryRemove(message, out _))
-            //{
-            //    if (TryGetMessageEntityBody(message, out var body))
-            //    {
-            //        return Task.FromResult(Messages.TryRemove(body, out _));
-            //    }
-            //}
+            
             var isEntity = TryGetMessageEntityBody(message, out var msgBody);
             var msg = !isEntity ? message : msgBody;
             if (!Messages.TryGetValue(msg, out var pubSubMessage))
@@ -450,7 +441,7 @@
             foreach (var message in messages)
             {
                 // Safe-guard against nulls.
-                if (message == null) return; 
+                if (message == null) break; 
 
                 // Find the message, remove from dictionary and grab acknowledge id if existed.
                 if (Messages.TryRemove(message, out var foundMsg))

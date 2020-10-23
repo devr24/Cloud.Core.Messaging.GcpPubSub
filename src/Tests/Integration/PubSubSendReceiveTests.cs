@@ -472,10 +472,13 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Receive from both subscriptions.
             var nonFilteredMessages = messenger.ReceiveBatch<string>("defaultsub", 100).GetAwaiter().GetResult();
             var filteredMessages = messenger.ReceiveBatch<string>("filteredsub", 100).GetAwaiter().GetResult();
+            var filteredMessage = messenger.ReceiveOne<string>("filteredsub").GetAwaiter().GetResult();
 
             // Assert 
             nonFilteredMessages.Count().Should().Be(2);
             filteredMessages.Count().Should().Be(1);
+            filteredMessage.Should().NotBe(null);
+            filteredMessage.Should().Be("testfilter");
         }
     }
 }
