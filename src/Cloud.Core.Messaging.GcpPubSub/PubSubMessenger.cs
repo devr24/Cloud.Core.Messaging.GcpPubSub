@@ -639,12 +639,13 @@
         private bool TryGetMessageEntityBody<T>(T message, out object entity) where T : class
         {
             const string messageEntityName = "IMessageEntity`1";
+            const string pubSubEntityName = "PubSubMessageEntity`1";
             entity = null;
 
             var typeName = typeof(T).Name;
 
             // Check if the type of the message is the same as the message entity type.
-            if (typeName == messageEntityName)
+            if (typeName == messageEntityName || typeName == pubSubEntityName)
             {
                 // Grab the object from the MessageEntity.Body property.
                 var body = message.GetPropertyValueByName("body");

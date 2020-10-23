@@ -228,11 +228,12 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
 
             // Act/Assert
             pubSub.Messages.ContainsKey(test).Should().BeFalse();
+            pubSub.Messages.Count.Should().Be(0);
         }
 
         /// <summary>Verify a message entity is abandoned as expected.</summary>
         [Fact]
-        public void Test_PubSubMessenger_AbandonMessageEntity()
+        public void Test_PubSubMessenger_AbandonMessageEntity1()
         {
             // Arrange
             using var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
@@ -244,6 +245,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
 
             // Act/Assert
             pubSub.Messages.ContainsKey(test).Should().BeFalse();
+            pubSub.Messages.Count.Should().Be(0);
         }
 
         /// <summary>Verify SenderConfig ToString overload works as expected.</summary>
