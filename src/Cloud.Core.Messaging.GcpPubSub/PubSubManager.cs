@@ -46,7 +46,7 @@
             if (!deadletterName.IsNullOrEmpty())
                 CreateTopicIfNotExists(deadletterName).GetAwaiter().GetResult();
 
-                // If a subscription has been requested for creation, create. Along with dead-letter subscription.
+            // If a subscription has been requested for creation, create. Along with dead-letter subscription.
             if (!subscriptionName.IsNullOrEmpty())
                 await CreateSubscription(topicName, subscriptionName, filter);
 
