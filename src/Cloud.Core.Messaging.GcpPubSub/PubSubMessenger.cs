@@ -50,6 +50,7 @@
         {
             get
             {
+                // Lazy creation of the subscriber client when requested.
                 return _managerClient ??= new SubscriberServiceApiClientBuilder { ChannelCredentials = GetCredentials() }.Build();
             }
         }
@@ -58,7 +59,22 @@
         {
             get
             {
+                // Lazy creation of the publisher client when requested.
                 return _publisherClient ??= new PublisherServiceApiClientBuilder { ChannelCredentials = GetCredentials() }.Build();
+            }
+        }
+
+        /// <summary>
+        /// The messaging entity manager.
+        /// </summary>
+        /// <value>The entity manager.</value>
+        /// <seealso cref="T:Cloud.Core.IMessageEntityManager" />
+        public IMessageEntityManager EntityManager
+        {
+            get
+            {
+                // Lazy creation of the PubSub manager when requested for the first time.
+                return _pubSubManager ??= new PubSubManager(Config.ProjectId, ManagementClient, PublisherClient);
             }
         }
 
@@ -75,7 +91,7 @@
         /// <param name="logger">The logger.</param>
         public PubSubMessenger([NotNull]PubSubConfig config, ILogger logger = null)
         {
-            // Validate configuration.
+            // Validate configuration and throw if invalid.
             config.ThrowIfInvalid();
              
             Config = config;
@@ -91,7 +107,7 @@
         /// <param name="logger">The logger.</param>
         public PubSubMessenger([NotNull] PubSubJsonAuthConfig config, ILogger logger = null)
         {
-            // Validate configuration.
+            // Validate configuration and throw if invalid.
             config.ThrowIfInvalid();
 
             Config = config;
@@ -99,19 +115,6 @@
             _jsonAuthFile = config.JsonAuthFile;
 
             Name = config.ProjectId;
-        }
-
-        /// <summary>
-        /// The messaging entity manager.
-        /// </summary>
-        /// <value>The entity manager.</value>
-        /// <seealso cref="T:Cloud.Core.IMessageEntityManager" />
-        public IMessageEntityManager EntityManager
-        {
-            get
-            {
-                return _pubSubManager ??= new PubSubManager(Config.ProjectId, ManagementClient, PublisherClient);
-            }
         }
 
         /// <summary>
@@ -124,6 +127,7 @@
         /// <returns>System.Threading.Tasks.Task.</returns>
         public async Task Send<T>(string topicName, T message, KeyValuePair<string, object>[] properties = null) where T : class
         {
+            // Calls internal send method directly, so topic name can be passed along.
             await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), new List<T> { message }, properties, null, 1);
         }
 
@@ -137,6 +141,7 @@
         /// <returns>System.Threading.Tasks.Task.</returns>
         public async Task Send<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null) where T : class
         {
+            // Calls internal send method directly, so topic name can be passed along.
             await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), messages, properties, null, 1);
         }
 
@@ -200,8 +205,9 @@
         /// <returns>The typed T.</returns>
         public T ReceiveOne<T>() where T : class
         {
-            var result = InternalReceiveBatch<T>(1).GetAwaiter().GetResult();
-            return result?.FirstOrDefault()?.Body;
+            // Batch size is one, so list of one should be returned - first item body will be returned from the method.
+            var result = ReceiveBatch<T>(1).GetAwaiter().GetResult();
+            return result.FirstOrDefault();
         }
 
         /// <summary>
@@ -211,7 +217,8 @@
         /// <returns>IMessageEntity wrapper with body and properties.</returns>
         public IMessageEntity<T> ReceiveOneEntity<T>() where T : class
         {
-            var result = InternalReceiveBatch<T>(1).GetAwaiter().GetResult();
+            // Batch size is one, so list of one should be returned - first item body will be returned from the method.
+            var result = ReceiveBatchEntity<T>(1).GetAwaiter().GetResult();
             return result.FirstOrDefault();
         }
 
@@ -250,7 +257,7 @@
         {
             CreateIfNotExists();
             _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.ReadFromErrorEntity
-                    ? Config.ReceiverConfig.DeadLetterEntityName
+                    ? Config.ReceiverConfig.EntityDeadLetterName
                     : Config.ReceiverConfig.EntitySubscriptionName),
                 new SubscriberClient.ClientCreationSettings(credentials: GetCredentials())).GetAwaiter().GetResult();
 
@@ -288,7 +295,7 @@
         {
             CreateIfNotExists();
             _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.ReadFromErrorEntity
-                    ? Config.ReceiverConfig.DeadLetterEntityName
+                    ? Config.ReceiverConfig.EntityDeadLetterName
                     : Config.ReceiverConfig.EntitySubscriptionName),
                 new SubscriberClient.ClientCreationSettings(credentials: GetCredentials())).GetAwaiter().GetResult();
 
@@ -338,15 +345,35 @@
 
         /// <summary>
         /// Reads the properties.
+        /// Returns null if message was not found, otherwise returns a dictionary of properties.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="message">The message.</param>
-        /// <returns>System.Collections.Generic.IDictionary&lt;System.String, System.Object&gt;.</returns>
+        /// <typeparam name="T">Type of message to lookup.</typeparam>
+        /// <param name="message">The message to read properties from.</param>
+        /// <returns>System.Collections.Generic.IDictionary&lt;System.String, System.Object&gt; Dictionary of properties found.</returns>
         public IDictionary<string, object> ReadProperties<T>(T message) where T : class
         {
-            T msg = !(message is IMessageEntity<T> entityMessage) ? message : entityMessage.Body;
+            // Null safe guard.
+            if (message == null)
+                return null;
 
-            return ReadProperties(Messages[msg]?.Message);
+
+            //// This conversion picks up IMessageEntity messages, because their body is used for the key in the message dictionary.
+            //if (message != null && !Messages.TryRemove(message, out _))
+            //{
+            //    if (TryGetMessageEntityBody(message, out var body))
+            //    {
+            //        return Task.FromResult(Messages.TryRemove(body, out _));
+            //    }
+            //}
+            var isEntity = TryGetMessageEntityBody(message, out var msgBody);
+            var msg = !isEntity ? message : msgBody;
+            if (!Messages.TryGetValue(msg, out var pubSubMessage))
+            {
+                // Cant find message, return null.
+                return null;
+            }
+
+            return InternalReadProperties(pubSubMessage.Message);
         }
 
         /// <summary>
@@ -357,7 +384,8 @@
         /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper</returns>
         public async Task Complete<T>(T message) where T : class
         {
-            if (message == null) 
+            // Null safe guard.
+            if (message == null)
                 return;
 
             await CompleteAll(new[] { message });
@@ -375,24 +403,56 @@
 
             foreach (var message in messages)
             {
+                // Safe-guard against nulls.
+                if (message == null) return; 
+
+                // Find the message, remove from dictionary and grab acknowledge id if existed.
                 if (Messages.TryRemove(message, out var foundMsg))
                 {
                     ackIds.Add(foundMsg.AckId);
                 }
                 else
                 {
-                    var body = message.GetPropertyValueByName("body");
-                    if (body != null && Messages.TryRemove(body, out foundMsg))
+                    // As the message wasn't found using the message as key, this conversion try's to picks up messages of type
+                    // IMessageEntity because in their case it's their body that is used for the key in the dictionary.
+                    var isEntity = TryGetMessageEntityBody(message, out var msgBody);
+
+                    if (isEntity && Messages.TryRemove(msgBody, out foundMsg))
                     {
                         ackIds.Add(foundMsg.AckId);
                     }
+                    
                 }
             }
 
             if (ackIds.Any())
             {
+                // Acknowledge message and remove from subscription.
                 await ManagementClient.AcknowledgeAsync(new AcknowledgeRequest { AckIds = { ackIds }, Subscription = new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.EntitySubscriptionName).ToString() });
             }
+        }
+
+        private bool TryGetMessageEntityBody<T>(T message, out object entity) where T : class
+        {
+            entity = null;
+
+            var typeName = typeof(T).Name;
+            //var iseqi = (typeof(PubSubMessageEntity<>)) == message.GetType().UnderlyingSystemType;
+
+            if (typeName == "IMessageEntity`1")
+            {
+                var body = message.GetPropertyValueByName("body");
+                entity = body;
+
+                //Type d1 = typeof(PubSubMessageEntity<>);
+                //Type[] typeArgs = { body.GetType() };
+                //Type constructed = d1.MakeGenericType(typeArgs);
+                //object o = Activator.CreateInstance(constructed);
+                
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -404,8 +464,18 @@
         /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper.</returns>
         public Task Abandon<T>(T message, KeyValuePair<string, object>[] propertiesToModify = null) where T : class
         {
-            T msg = !(message is IMessageEntity<T> entityMessage) ? message : entityMessage.Body;
-            return Task.FromResult(Messages.TryRemove(msg, out _));
+            // This conversion picks up IMessageEntity messages, because their body is used for the key in the message dictionary.
+            if (message!= null && !Messages.TryRemove(message, out _))
+            {
+                if (TryGetMessageEntityBody(message, out var body))
+                {
+                    return Task.FromResult(Messages.TryRemove(body, out _));
+                }
+            }
+
+            return Task.FromResult(false);
+
+            // Note: We don't complete the message here so it can be picked back up again. Just remove local reference.
         }
 
         /// <summary>
@@ -417,90 +487,87 @@
         /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper</returns>
         public async Task Error<T>(T message, string reason = null) where T : class
         {
+            // Null safe guard.
             if (message == null)
                 return;
 
-            T msg = !(message is IMessageEntity<T> entityMessage) ? message : entityMessage.Body;
+            object msgBody = message;
 
-            var props = ReadProperties(message);
-            props.TryAdd("ErrorReason", reason);
+            if (!Messages.TryGetValue(message, out var foundMsg))
+            {
+                // As the message wasn't found using the message as key, this conversion try's to picks up messages of type
+                // IMessageEntity because in their case it's their body that is used for the key in the dictionary.
+                var isEntity = TryGetMessageEntityBody(message, out var body);
+                if (isEntity && Messages.TryGetValue(body, out foundMsg))
+                {
+                    msgBody = body;
+                }
+                else
+                {
+                    // NOT FOUND!
+                    return;
+                }
+            }
 
-            // Complete the message, then send on to dead-letter queue.
-            await CompleteAll(new[] { msg });
-            await InternalSendBatch(Config.ReceiverConfig.TopicDeadletterRelativeName, new List<T> { msg }, props.ToArray(), null, 100);
+            var props = InternalReadProperties(foundMsg.Message);
+
+            // Add an error reason property if set.
+            if (!reason.IsNullOrEmpty())
+            {
+                props.TryAdd("ErrorReason", reason);
+            }
+           
+            // Complete the message (completing removes the message from the dictionary), then send on to dead-letter queue.
+            await CompleteAll(new[] { msgBody });
+            await InternalSendBatch(Config.ReceiverConfig.TopicDeadletterRelativeName, new [] { msgBody }, props.ToArray(), null, 100);
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Defers a message in the the queue.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="message">The message we want to abandon.</param>
         /// <param name="propertiesToModify">The message properties to modify on abandon.</param>
         /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper.</returns>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task Defer<T>(T message, KeyValuePair<string, object>[] propertiesToModify) where T : class
         {
             throw new NotImplementedException();
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Receives a batch of deferred messages of type T.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="identities">The list of identities pertaining to the batch.</param>
         /// <returns>IMessageItem&lt;T&gt;.</returns>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task<List<T>> ReceiveDeferredBatch<T>(IEnumerable<long> identities) where T : class
         {
             throw new NotImplementedException();
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Receives a batch of deferred messages of type IMessageEntity types.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="identities">The list of identities pertaining to the batch</param>
         /// <returns>IMessageEntity&lt;T&gt;.</returns>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task<List<IMessageEntity<T>>> ReceiveDeferredBatchEntity<T>(IEnumerable<long> identities) where T : class
         {
             throw new NotImplementedException();
         }
-
-        #region IDisposable Support
-
-        /// <summary>
-        /// Disposes the specified disposing.
-        /// </summary>
-        /// <param name="disposing">The disposing flag.</param>
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposedValue)
-            {
-                if (disposing)
-                {
-                    // Any clear up here.
-                }
-
-                _disposedValue = true;
-            }
-        }
-
-        /// <summary>
-        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-        /// </summary>
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        #endregion
 
         private void CreateIfNotExists()
         {
             // Build receiverConfig.
             if (!_createdReceiverTopic && Config.ReceiverConfig != null && Config.ReceiverConfig.CreateEntityIfNotExists)
             {
-                ((PubSubManager)EntityManager).CreateTopic(Config.ReceiverConfig.EntityName, Config.ReceiverConfig.DeadLetterEntityName,
+                ((PubSubManager)EntityManager).CreateTopic(Config.ReceiverConfig.EntityName, Config.ReceiverConfig.EntityDeadLetterName,
                     Config.ReceiverConfig.EntitySubscriptionName, Config.ReceiverConfig.EntityDeadLetterSubscriptionName, Config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
                 _createdReceiverTopic = true;
             }
@@ -508,7 +575,7 @@
             // Build sender.
             if (!_createdSenderTopic && Config.Sender != null && Config.Sender.CreateEntityIfNotExists)
             {
-                ((PubSubManager)EntityManager).CreateTopic(Config.Sender.EntityName, Config.Sender.DeadLetterEntityName).GetAwaiter().GetResult();
+                ((PubSubManager)EntityManager).CreateTopic(Config.Sender.EntityName, Config.Sender.EntityDeadLetterName).GetAwaiter().GetResult();
                 _createdSenderTopic = true;
             }
         }
@@ -516,22 +583,27 @@
         [ExcludeFromCodeCoverage]
         private ChannelCredentials GetCredentials()
         {
+            // Only build these once.
             if (_credentials == null)
             {
+                // NOTE: extend here to add other auth mechanisms.
                 if (!_jsonAuthFile.IsNullOrEmpty())
                 {
+                    // Authenticate using a reference to json files.
                     _credentials = GoogleCredential.FromFile(_jsonAuthFile).ToChannelCredentials();
                 }
                 else
                 {
-                    // Verify the credentials have been set as expected.
+                    // Default method, which takes the environment variable "GOOGLE_APPLICATION_CREDENTIALS" with the credential file path.
+
+                    // Firstly, verify the credentials have been set as expected - throw error if not.
                     var credentialLocation = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
                     if (credentialLocation.IsNullOrEmpty() || File.Exists(credentialLocation) == false)
                     {
-                        throw new InvalidOperationException(
-                            "Environment variable \"GOOGLE_APPLICATION_CREDENTIALS\" must exist and must point to a valid credential json file");
+                        throw new InvalidOperationException("Environment variable \"GOOGLE_APPLICATION_CREDENTIALS\" must exist and must point to a valid credential json file");
                     }
 
+                    // Use default credentials.
                     _credentials = GoogleCredential.GetApplicationDefault().ToChannelCredentials();
                 }
             }
@@ -539,6 +611,16 @@
             return _credentials;
         }
 
+        /// <summary>
+        /// Internals the send batch.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="topic">The topic to send to.</param>
+        /// <param name="messages">The messages to send.</param>
+        /// <param name="properties">The properties for each message (if all will be the same).</param>
+        /// <param name="setProps">The function for setting props for each method (allows messages to have individual props).</param>
+        /// <param name="batchSize">Size of the batch to send.</param>
+        /// <returns>System.Threading.Tasks.Task.</returns>
         private async Task InternalSendBatch<T>(string topic, IEnumerable<T> messages, KeyValuePair<string, object>[] properties, Func<T, KeyValuePair<string, object>[]> setProps, int batchSize) where T : class
         {
             CreateIfNotExists();
@@ -579,6 +661,12 @@
             }
         }
 
+        /// <summary>
+        /// Internals the receive batch.  Always returns list of messages back but will be empty if none where returned from the server.
+        /// </summary>
+        /// <typeparam name="T">Type of messages to serialize to.</typeparam>
+        /// <param name="batchSize">Size of the batch.</param>
+        /// <returns>System.Threading.Tasks.Task&lt;System.Collections.Generic.List&lt;Cloud.Core.IMessageEntity&lt;T&gt;&gt;&gt;.</returns>
         private async Task<List<IMessageEntity<T>>> InternalReceiveBatch<T>(int batchSize) where T : class
         {
             // Ensure the receiver topic/subscription is setup first of all before trying to receive.
@@ -595,6 +683,7 @@
             PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(Config.ProjectId, subscriptionName), false, batchSize);
             var messages = response.ReceivedMessages;
 
+            // Return empty batch if no messages where returned.
             if (!messages.Any())
                 return batch;
 
@@ -606,7 +695,7 @@
                 // Keep track of the read messages so they can be completed.
                 Messages.TryAdd(typedContent, message);
 
-                var props = ReadProperties(message.Message);
+                var props = InternalReadProperties(message.Message);
 
                 batch.Add(new PubSubMessageEntity<T> { Body = typedContent, Properties = props });
             }
@@ -653,19 +742,54 @@
         /// </summary>
         /// <param name="pubsubMsg">The PubSub message.</param>
         /// <returns>System.Collections.Generic.IDictionary&lt;System.String, System.Object&gt;.</returns>
-        private IDictionary<string, object> ReadProperties(PubsubMessage pubsubMsg)
+        private IDictionary<string, object> InternalReadProperties(PubsubMessage pubsubMsg)
         {
             var props = new Dictionary<string, object>();
 
             // Add each property to the list of props returned.
-            foreach (var messageAttribute in pubsubMsg.Attributes)
+            if (pubsubMsg != null)
             {
-                props.Add(messageAttribute.Key, messageAttribute.Value);
+                foreach (var messageAttribute in pubsubMsg.Attributes)
+                {
+                    props.Add(messageAttribute.Key, messageAttribute.Value);
+                }
+
+                // Always add MessageId as a property.
+                props.AddOrUpdate("MessageId", pubsubMsg.MessageId);
             }
-            // Always add MessageId as a property.
-            props.AddOrUpdate("MessageId", pubsubMsg.MessageId);
+
             return props;
         }
 
+        #region IDisposable Support
+
+        /// <summary>
+        /// Disposes the specified disposing.
+        /// </summary>
+        /// <param name="disposing">The disposing flag.</param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposedValue)
+            {
+                if (disposing)
+                {
+                    // Any clear up here.
+                }
+
+                _disposedValue = true;
+            }
+        }
+
+        /// <summary>
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        #endregion
     }
 }

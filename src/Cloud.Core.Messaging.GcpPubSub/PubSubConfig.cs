@@ -25,7 +25,7 @@
             set
             {
                 _projectId = value;
-                SetProps();
+                SetProps(); // ensure defaults (based on entity name) are set.
             }
         }
 
@@ -39,7 +39,7 @@
             set
             {
                 _entityName = value;
-                SetProps();
+                SetProps(); // ensure defaults (based on entity name) are set.
             }
         }
 
@@ -59,16 +59,23 @@
         /// Gets the name of the dead letter entity.
         /// </summary>
         /// <value>The name of the dead letter entity.</value>
-        public string DeadLetterEntityName { get; private set; }
+        public string EntityDeadLetterName { get; private set; }
 
         private void SetProps()
         {
             TopicRelativeName = $"projects/{ProjectId}/topics/{EntityName}";
             if (!_entityName.IsNullOrEmpty() && !_entityName.EndsWith("_deadletter"))
             {
-                DeadLetterEntityName = $"{EntityName}_deadletter";
-                TopicDeadletterRelativeName = $"projects/{ProjectId}/topics/{DeadLetterEntityName}";
+                EntityDeadLetterName = $"{EntityName}_deadletter";
+                TopicDeadletterRelativeName = $"projects/{ProjectId}/topics/{EntityDeadLetterName}";
             }
+        }
+
+        /// <summary>Returns a <see cref="string" /> that represents this instance.</summary>
+        /// <returns>A <see cref="string" /> that represents this instance.</returns>
+        public override string ToString()
+        {
+            return $"EntityName: {EntityName}, EntityDeadLetterName: {EntityDeadLetterName}";
         }
     }
 
@@ -114,7 +121,7 @@
         /// Gets the name of the dead letter subscription.
         /// </summary>
         /// <value>The name of the dead letter subscription.</value>
-        public string EntityDeadLetterSubscriptionName => $"{DeadLetterEntityName}_default";
+        public string EntityDeadLetterSubscriptionName => $"{EntityDeadLetterName}_default";
 
         /// <summary>
         /// Gets or sets the entity filter that's applied if using a topic.
@@ -133,6 +140,13 @@
         /// </summary>
         /// <value><c>true</c> if [read error queue]; otherwise, <c>false</c>.</value>
         public bool ReadFromErrorEntity { get; set; }
+
+        /// <summary>Returns a <see cref="string" /> that represents this instance.</summary>
+        /// <returns>A <see cref="string" /> that represents this instance.</returns>
+        public override string ToString()
+        {
+            return $"{base.ToString()}, EntitySubscriptionName: {EntitySubscriptionName}, EntityDeadLetterSubscriptionName: {EntityDeadLetterSubscriptionName}, EntityFilter: {EntityFilter}, CreateEntityIfNotExists: {CreateEntityIfNotExists}, ReadFromErrorEntity: {ReadFromErrorEntity}";
+        }
     }
 
     /// <summary>
@@ -154,6 +168,13 @@
         /// </summary>
         /// <value><c>true</c> if [create entity if not exists]; otherwise, <c>false</c> (don't auto create).</value>
         public bool CreateEntityIfNotExists { get; set; }
+
+        /// <summary>Returns a <see cref="string" /> that represents this instance.</summary>
+        /// <returns>A <see cref="string" /> that represents this instance.</returns>
+        public override string ToString()
+        {
+            return $"{base.ToString()}, CreateEntityIfNotExists: {CreateEntityIfNotExists}";
+        }
     }
 
     /// <summary>
@@ -169,6 +190,13 @@
         /// <value>The json authentication file.</value>
         [Required]
         public string JsonAuthFile { get; set; }
+
+        /// <summary>Returns a <see cref="string" /> that represents this instance.</summary>
+        /// <returns>A <see cref="string" /> that represents this instance.</returns>
+        public override string ToString()
+        {
+            return $"Auth (jsonFile): {JsonAuthFile}, {base.ToString()}";
+        }
     }
 
     /// <summary>
@@ -263,8 +291,8 @@
         /// <inheritdoc />
         public override string ToString()
         {
-            return $"ProjectId:{ProjectId}{Environment.NewLine}ReceiverInfo: {(ReceiverConfig == null ? "[NOT SET]" : ReceiverConfig.ToString())}" +
-                   $"{Environment.NewLine}SenderInfo: {(Sender == null ? "[NOT SET]" : Sender.ToString())}";
+            return $"ProjectId:{ProjectId}, ReceiverInfo: {(ReceiverConfig == null ? "[NOT SET]" : ReceiverConfig.ToString())}, " +
+                   $"SenderInfo: {(Sender == null ? "[NOT SET]" : Sender.ToString())}";
         }
     }
 }

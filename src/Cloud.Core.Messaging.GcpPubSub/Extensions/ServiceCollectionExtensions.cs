@@ -1,4 +1,5 @@
-﻿namespace Microsoft.Extensions.DependencyInjection
+﻿// ReSharper disable once CheckNamespace
+namespace Microsoft.Extensions.DependencyInjection
 {
     using System;
     using Cloud.Core;
@@ -26,8 +27,10 @@
             }
 
             services.AddSingleton(typeof(T), pubSubInstance);
-            services.AddFactoryIfNotAdded<IMessenger>();
-            services.AddFactoryIfNotAdded<IReactiveMessenger>();
+
+            // Ensure there's a NamedInstance factory to allow named collections of the messenger.
+            services.AddFactoryIfNotAdded<T>();
+            
             return services;
         }
 
@@ -50,8 +53,10 @@
             }
 
             services.AddSingleton(typeof(T), pubSubInstance);
-            services.AddFactoryIfNotAdded<IMessenger>();
-            services.AddFactoryIfNotAdded<IReactiveMessenger>();
+
+            // Ensure there's a NamedInstance factory to allow named collections of the messenger.
+            services.AddFactoryIfNotAdded<T>();
+
             return services;
         }
 

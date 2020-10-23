@@ -59,7 +59,7 @@
         /// </summary>
         /// <param name="topicName">Name of the topic.</param>
         /// <param name="subscriptionName">Name of the subscription.</param>
-        /// <param name="deadletterTopic">The deadletter topic.</param>
+        /// <param name="deadletterTopic">The dead-letter topic.</param>
         /// <param name="filter">The filter.</param>
         public async Task CreateSubscription(string topicName, string subscriptionName, string deadletterTopic = null, string filter = null)
         {
@@ -105,10 +105,17 @@
         /// <param name="subscriptionName">Name of the subscription.</param>
         public async Task DeleteSubscription(string subscriptionName)
         {
-            // Delete the specified subscription.
-            await _receiverSubscriptionClient.DeleteSubscriptionAsync(new DeleteSubscriptionRequest {
-                Subscription = subscriptionName
-            });
+            try
+            {
+                // Delete the specified subscription.
+                await _receiverSubscriptionClient.DeleteSubscriptionAsync(new DeleteSubscriptionRequest {
+                    SubscriptionAsSubscriptionName = new SubscriptionName(_projectId, subscriptionName),
+                });
+            }
+            catch (RpcException e) when(e.StatusCode == StatusCode.NotFound)
+            {
+                // Not found error.
+            }
         }
 
         /// <summary>
@@ -206,7 +213,7 @@
                 }
 
                 // Create topic plus subscriptions if set.
-                await CreateTopic(psConfig.EntityName, psConfig.DeadLetterEntityName, subName, deadletterSubName, filter);
+                await CreateTopic(psConfig.EntityName, psConfig.EntityDeadLetterName, subName, deadletterSubName, filter);
             }
         }
 
@@ -230,7 +237,7 @@
                 {
                     // Delete subscriptions associated with the topic.
                     if (subscription.Topic.EndsWith(entityName))
-                        await DeleteSubscription(subscription.Name);
+                        await DeleteSubscription(subscription.SubscriptionName.SubscriptionId);
                 }
 
                 // Begin by deleting the topic.
@@ -251,10 +258,11 @@
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Gets the receiver entity usage percentage. 1.0 represents 100%.
         /// </summary>
         /// <returns>Task&lt;System.Double&gt;.</returns>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task<decimal> GetReceiverEntityUsagePercentage()
         {
             throw new NotImplementedException();
@@ -264,30 +272,33 @@
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Gets the receiver active and errored message count.
         /// </summary>
         /// <returns>Task&lt;EntityMessageCount&gt;.</returns>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task<EntityMessageCount> GetReceiverMessageCount()
         {
             throw new NotImplementedException();
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Gets the sender entity usage percentage. 1.0 represents 100%.
         /// </summary>
         /// <returns>Task&lt;System.Double&gt;.</returns>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task<decimal> GetSenderEntityUsagePercentage()
         {
             throw new NotImplementedException();
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Gets the sender active and errored message count.
         /// </summary>
         /// <returns>Task&lt;EntityMessageCount&gt;.</returns>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task<EntityMessageCount> GetSenderMessageCount()
         {
             throw new NotImplementedException();
@@ -301,10 +312,11 @@
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Determines whether [receiver entity is disabled].
         /// </summary>
         /// <returns>Task&lt;System.Boolean&gt;.</returns>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task<bool> IsReceiverEntityDisabled()
         {
             throw new NotImplementedException();
@@ -315,10 +327,11 @@
         }
 
         /// <summary>
+        /// [NOT IMPLEMENTED]
         /// Determines whether [sender entity is disabled].
         /// </summary>
         /// <returns>Task&lt;System.Boolean&gt;.</returns>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
         public Task<bool> IsSenderEntityDisabled()
         {
             throw new NotImplementedException();

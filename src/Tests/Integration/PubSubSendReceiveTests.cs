@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using Cloud.Core.Testing;
 using Cloud.Core.Testing.Lorem;
@@ -413,7 +414,8 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Send to topics
             _fixture.Messenger.Send(lorem1).GetAwaiter().GetResult();
             ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2).GetAwaiter().GetResult();
-            ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2, new []{  new KeyValuePair<string, object>("prop1","prop1val")  }).GetAwaiter().GetResult();
+            ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2, new []{  new KeyValuePair<string, object>("prop1","prop1val")  }).GetAwaiter().GetResult(); // used for branch coverage
+            ((PubSubMessenger)_fixture.Messenger).Send("topic2", new [] { lorem2 }, new[] { new KeyValuePair<string, object>("prop1", "prop1val") }).GetAwaiter().GetResult(); // used for branch coverage
 
             // Read from topic 1
             var msg1 = _fixture.Messenger.ReceiveOne<string>();

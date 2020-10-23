@@ -46,7 +46,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
 
             // Assert
             config.TopicRelativeName.Should().Be($"projects/projId/topics/entityName");
-            config.DeadLetterEntityName.Should().Be($"entityName_deadletter");
+            config.EntityDeadLetterName.Should().Be($"entityName_deadletter");
             config.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
             config.ToString().Length.Should().BeGreaterThan(0);
             config.ProjectId.Should().Be("projId");
@@ -121,7 +121,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
 
             // Assert
             receiver.TopicRelativeName.Should().Be($"projects/projId/topics/entityName");
-            receiver.DeadLetterEntityName.Should().Be($"entityName_deadletter");
+            receiver.EntityDeadLetterName.Should().Be($"entityName_deadletter");
             receiver.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
             receiver.ToString().Length.Should().BeGreaterThan(0);
             receiver.ProjectId.Should().Be("projId");
@@ -142,7 +142,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
 
             // Assert
             sender.TopicRelativeName.Should().Be($"projects/projId/topics/entityName");
-            sender.DeadLetterEntityName.Should().Be($"entityName_deadletter");
+            sender.EntityDeadLetterName.Should().Be($"entityName_deadletter");
             sender.TopicDeadletterRelativeName.Should().Be($"projects/projId/topics/entityName_deadletter");
             sender.ToString().Length.Should().BeGreaterThan(0);
             sender.ProjectId.Should().Be("projId");
@@ -210,8 +210,9 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }));
 
             // Manager methods.
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetReceiverMessageCount());
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetReceiverEntityUsagePercentage());
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetSenderEntityUsagePercentage());
+            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetReceiverMessageCount());
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetSenderMessageCount());
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.IsReceiverEntityDisabled());
             Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.IsSenderEntityDisabled());
