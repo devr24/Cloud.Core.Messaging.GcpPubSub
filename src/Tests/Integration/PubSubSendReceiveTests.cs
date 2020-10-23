@@ -53,6 +53,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             Messenger.EntityManager.DeleteEntity($"{TestTopicName}_deadletter").GetAwaiter().GetResult();
             Messenger.EntityManager.DeleteEntity($"{TestTopicName}_stream").GetAwaiter().GetResult();
             Messenger.EntityManager.DeleteEntity($"{TestTopicName}_streamObs").GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity("topic2").GetAwaiter().GetResult();
         }
     }
 
@@ -412,7 +413,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Send to topics
             _fixture.Messenger.Send(lorem1).GetAwaiter().GetResult();
             ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2).GetAwaiter().GetResult();
-            ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2, new []{  new KeyValuePair<string, object>("prop1","prop1val"),  }).GetAwaiter().GetResult();
+            ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2, new []{  new KeyValuePair<string, object>("prop1","prop1val")  }).GetAwaiter().GetResult();
 
             // Read from topic 1
             var msg1 = _fixture.Messenger.ReceiveOne<string>();
@@ -422,6 +423,9 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             _fixture.ReactiveMessenger.UpdateReceiver("topic2");
             var msg2 = _fixture.Messenger.ReceiveOne<string>();
             _fixture.Messenger.Complete(msg2).GetAwaiter().GetResult();
+
+            // Reset everything.
+            _fixture.ReactiveMessenger.UpdateReceiver(_fixture.TestTopicName);
 
             // Assert
             msg1.Should().Be(lorem1);

@@ -357,6 +357,9 @@
         /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper</returns>
         public async Task Complete<T>(T message) where T : class
         {
+            if (message == null) 
+                return;
+
             await CompleteAll(new[] { message });
         }
 
@@ -414,6 +417,9 @@
         /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper</returns>
         public async Task Error<T>(T message, string reason = null) where T : class
         {
+            if (message == null)
+                return;
+
             T msg = !(message is IMessageEntity<T> entityMessage) ? message : entityMessage.Body;
 
             var props = ReadProperties(message);
@@ -495,7 +501,7 @@
             if (!_createdReceiverTopic && Config.ReceiverConfig != null && Config.ReceiverConfig.CreateEntityIfNotExists)
             {
                 ((PubSubManager)EntityManager).CreateTopic(Config.ReceiverConfig.EntityName, Config.ReceiverConfig.DeadLetterEntityName,
-                    Config.ReceiverConfig.EntitySubscriptionName, Config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
+                    Config.ReceiverConfig.EntitySubscriptionName, Config.ReceiverConfig.EntityDeadLetterSubscriptionName, Config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
                 _createdReceiverTopic = true;
             }
 

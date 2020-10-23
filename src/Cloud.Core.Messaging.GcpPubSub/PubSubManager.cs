@@ -36,21 +36,22 @@
         /// <param name="topicName">Name of the topic.</param>
         /// <param name="deadletterName">Name of the dead-letter.</param>
         /// <param name="subscriptionName">Name of the subscription.</param>
+        /// <param name="deadletterSubscriptionName">Name of the dead-letter subscription.</param>
         /// <param name="filter">The filter for the subscription.</param>
-        public async Task CreateTopic(string topicName, string deadletterName, string subscriptionName = null, string filter = null)
+        public async Task CreateTopic(string topicName, string deadletterName, string subscriptionName = null, string deadletterSubscriptionName = null, string filter = null)
         {
             // Create the topic and the dead-letter equivalent.
             CreateTopicIfNotExists(topicName).GetAwaiter().GetResult();
+
             if (!deadletterName.IsNullOrEmpty())
                 CreateTopicIfNotExists(deadletterName).GetAwaiter().GetResult();
 
-            if (subscriptionName.IsNullOrEmpty())
-                return;
-
             // If a subscription has been requested for creation, create. Along with dead-letter subscription.
-            await CreateSubscription(topicName, subscriptionName, deadletterName, filter);
-            if (!deadletterName.IsNullOrEmpty())
-                await CreateSubscription(deadletterName, deadletterName, null, null);
+            if (!subscriptionName.IsNullOrEmpty())
+                await CreateSubscription(topicName, subscriptionName, deadletterName, filter);
+
+            if (!deadletterSubscriptionName.IsNullOrEmpty())
+                await CreateSubscription(deadletterName, deadletterSubscriptionName, null, null);
         }
 
         /// <summary>
@@ -193,17 +194,19 @@
             if (entity is PubSubEntityConfig psConfig)
             {
                 string subName = null;
+                string deadletterSubName = null;
                 string filter = null;
 
                 // Cast to config that has subscriptions to see if they are set.
                 if (psConfig is ReceiverConfig receiver)
                 {
                     subName = receiver.EntitySubscriptionName;
+                    deadletterSubName = receiver.EntityDeadLetterSubscriptionName;
                     filter = receiver.EntityFilter.GetValueOrDefault().Value;
                 }
 
                 // Create topic plus subscriptions if set.
-                await CreateTopic(psConfig.EntityName, psConfig.DeadLetterEntityName, subName, filter);
+                await CreateTopic(psConfig.EntityName, psConfig.DeadLetterEntityName, subName, deadletterSubName, filter);
             }
         }
 
@@ -223,15 +226,15 @@
                 // Note: this is inefficient as it parses ALL subscriptions to find the ones relevant to the topic. Be better if
                 // there was a way to ask just for the subscriptions for a specific topic.
                 
-                // Begin by deleting the topic.
-                await _publisherServiceApiClient.DeleteTopicAsync(new TopicName(_projectId, entityName));
-
                 foreach (var subscription in subs)
                 {
                     // Delete subscriptions associated with the topic.
-                    if (subscription.Topic == entityName)
+                    if (subscription.Topic.EndsWith(entityName))
                         await DeleteSubscription(subscription.Name);
                 }
+
+                // Begin by deleting the topic.
+                await _publisherServiceApiClient.DeleteTopicAsync(new TopicName(_projectId, entityName));
             }
             catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
             {
