@@ -20,6 +20,27 @@ You will need the following setup to use this package:
 When you download your credentials file, there are two options (at the moment) for authenticating to GCP Pub/Sub.  As shown as follows along with initialisation:
 
 
+### Method 1 - set credentials file as Environment Variable
+You can add an environment setting called 'GOOGLE_APPLICATION_CREDENTIALS' with a path to the credentials *.json file and then the code will automatically pick these up when running.  The initialisation code would look like this:
+```csharp
+var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+{
+	JsonAuthFile = CredentialPath,
+	...
+});
+```
+_Remember to run your code in a context that has permissions to read the environment variable._
+
+### Method 2 - pass explicit path to credential file location
+If you prefer to pass an explicit path to your json credentials file (useful if you cannot access env variables, say in a test enviroment), then you can use this code:
+```csharp
+var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+{
+	JsonAuthFile = CredentialPath,
+	...
+});
+```
+
 ## Usage
 
 ### Interface with Core
@@ -42,50 +63,6 @@ Whereas the instantiation could easily be changed to use Google as follows:
 ```csharp
 IReactiveMessenger messenger = new ServiceBusMessenger(new MsiConfig());
 ```
-
-### Method 1 - set credentials file as Environment Variable
-You can add an environment setting called 'GOOGLE_APPLICATION_CREDENTIALS' with a path to the credentials *.json file and then the code will automatically pick these up when running.  The initialisation code would look like this:
-```csharp
-var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
-{
-	JsonAuthFile = CredentialPath,
-	...
-});
-```
-_Remember to run your code in a context that has permissions to read the environment variable._
-
-### Method 2 - pass explicit path to credential file location
-If you prefer to pass an explicit path to your json credentials file (useful if you cannot access env variables, say in a test enviroment), then you can use this code:
-```csharp
-var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
-{
-	JsonAuthFile = CredentialPath,
-	...
-});
-```
-
-
-## Interface Operations
-
-We can be explicit when using the messenger instances with `ISendMessages` (send operations only), `IReactiveMessenger` (streaming messages using observables) and `IMessenger` (simple callbacks for receiving messages).
-Read the full interface here: [IMessenger.cs](https://github.com/rmccabe24/Cloud.Core/blob/master/src/Cloud.Core/IMessenger.cs)
-
-If you just want to only send messages, you would consume `ISendMessages`.
-
-If you want to send and receive with a simple call back interface use the `IMessenger`.
-
-If instead you want a reactive IObservable that you can subscribe to, use the `IReactiveMessenger`.  The streaming functionality is very useful for messengers that don't offer push functionality out of the box, as with Azure Service Bus that works by polling the message queue.
-
-You can call `Abandon`, `Complete` and `Error` on the `IMessage` interface.
-
-- All messages arrive with a perpetual Lock applied in the form of a renewal timer on the message.
-
-- `Abandon` will abandon the message, returning it to the original queue.
-
-- `Complete` will actually perform the "Read" on the message taking it from the queue.
-
-- `Error` will move the message to the error queue (dead letter queue), used during critical processing errors where there may be problems with 
-validation, business rules, incorrect data, etc.
 
 ### How to send a message
 
@@ -119,47 +96,24 @@ public class TestMessage : IMessage
 
 Note: max allowed messages in a single batch is 1000.  So if you request a larger batch size it will be limited internally for you.
 
-
-
-
-
-
-### Entity Disabled Exception
-If you try to send messages to a queue or topic (or topic subscription) that is disabled, the `Send` code will throw an Cloud.Core.Messenger.EntityDisabledException that you can specifically catch and handle in your code. 
-
-The custom error allows code to stay generic and not need to look for service bus specific errors.  Littering code with platform specific api code.  Extend these custom errors as new scenarios arise.
-
-**Example**
-```csharp
-try
-{
-    // Example of sending a single message to the configured queue.
-    await messenger.Send<string[]>(new[] { "test" });
-}
-catch (Core.Exceptions.EntityDisabledException edEx)
-{
-    // exception occured - handle - potentially put app to sleep and try again shortly...
-}
-```
-
-### How to constantly receive messages using observables
+### How to stream messages using observables
 You can subscribe to new messages using the observable provided by the IReactiveMessenger interface.
 
 ```csharp
-IReactiveMessenger msn = new ServiceBusMessenger(config);
+IReactiveMessenger msn = new PubSubMessenger(config);
             
 msn.StartReceive<TestMessage>().Subscribe(
   async receivedMsg => {
   
       // Write processing code here...
 
-      // after processing, complete the message.
-      await msn.Complete(receivedMsg);
   },
   failedEx => {  
       // an exception has occurred.
   });
 ```
+
+_Note: messages are automatically acknowledged here due to restrictions in the PubSub SDK._
 
 ### How to constantly receive messages using callbacks
 You can pass callback's into the Receive method as provided IMessenger interface.
@@ -180,11 +134,13 @@ msn.Receive<TestMessage>(
   });
 ```
 
+_Note: messages are automatically acknowledged here._
+
 ### How to receive one message at a time
-You can stay in control of messages arrive by using the receive one method as shown below.  This is for scenarios where messages are not to be constantly streamed.
+You can stay in control of messages arriving by using the receive one method as shown below.  This is for scenarios where messages are not to be constantly streamed (Push) and are gathered using Pull.
 
 ```csharp
-IMessenger msn = new ServiceBusMessenger(config);
+IMessenger msn = new PubSubMessenger(config);
             
 var singleMessage = msn.ReceiveOne<TestMessage>();
 
@@ -193,81 +149,98 @@ var singleMessage = msn.ReceiveOne<TestMessage>();
 await msn.Complete(singleMessage);
 ```
 
+### How to receive one message entity at a time
+If you need access to message properties directly, you can use `ReceiveOneEntity` which gives you access to the typed content and message properties. 
+
+```csharp
+IMessenger msn = new PubSubMessenger(config);
+            
+var singleEntity = msn.ReceiveOneEntity<TestMessage>();
+
+// Process message...
+var props = singleEntity.Props;
+var body = singleEntity.Body
+
+await msn.Complete(singleEntity);
+// OR
+await msg.Complete(singleEntity.Body);
+```
+
+### How to receive a batch of messages
+You can receive a batch of messages in one single synchronous Pull.
+
+```csharp
+IMessenger msn = new PubSubMessenger(config);
+            
+var messages = msn.ReceiveBatch<TestMessage>(500);
+
+// Process messages...
+
+await msn.CompleteAll(messages);
+```
+
+### How to return a message to the topic
+You can abandon message processing by:
+
+```csharp
+IMessenger msn = new PubSubMessenger(config);
+            
+var message = msn.ReceiveOne<TestMessage>();
+
+// Process messages...
+
+await msn.Abandon(message);
+```
+
+### How to dead-letter a message
+You can dead-letter a message (put on error topic) by:
+
+```csharp
+IMessenger msn = new PubSubMessenger(config);
+            
+var message = msn.ReceiveOne<TestMessage>();
+
+// Process messages...
+
+await msn.Error(message); // move to dead-letter topic
+```
+
+## Managing Topics
+
+Todo
 
 ## Full working example
 
-```csharp
-var messenger = new ServiceBusMessenger(new Core.Messaging.AzureServiceBus.Config.MsiConfig
+```csharp       
+var messenger = new PubSubMessenger(new PubSubConfig
 {
-    InstanceName = namespaceHelper.MessagingServiceInstanceName,
-    SubscriptionId = Settings.SubscriptionId,
-    TenantId = Settings.TenantId,
-                    
-    // Information about the queue or topic that will be listened to.
-    Receiver = new ReceiverSetup
-    {
-        // use topic instead of queue (in this case topic - topic is set by default).
-        UseTopic = true,
-        // automatically create if its not there
-        CreateEntityIfNotExists = true, 
-        // name of topic
-        EntityName = "RobertsTestTopic", 
-        // subscription to listen on
-        EntitySubscriptionName = "RobertsTestSubscription",  
-        // (if creating) specify filter to apply to subscription.  This example filters on messages tagged version 1.0.
-        EntityFilter = new KeyValuePair<string, string>("RobertFilterExample", "Version = '1.0'"),
-        // How ofter to renew the lock on the message.  Uses the Max Allowed Locktime from service bus to make sure its 
-        // always less than the max allowed value if a larger value is specified.  Actually renews on 80% of this time.
-        LockRenewalTimeInSeconds = 60,
-        // How often to check for messages.  0.05 is the default BUT can be slowed down (or sped up) as required.
-        PollFrequencyInSeconds = 0.05,
-        // Old versions of service bus defaulted to string content.  Now it's default is stream.  There's a bit of overhead
-        // when dealing with the string types, so this is defaulted to false unless you know you want extra compatibility when
-        // setting up your listener (like listening off a subscription an old function sends to).
-        SupportStringBodyType = false
-    },
-    // Information about the queue or topic to send messages to.
-    Sender = new SenderSetup
-    {
-        // use queue instead of topic.
-        UseTopic = false,
-        // Create the queue if it doesnt already exist.
-        CreateEntityIfNotExists = true,
-        // Name of queue to send to.
-        EntityName = "RobertsTestQueue",
-        // Property "Version" for the message.  Always set, can be used for filtering.
-        MessageVersion = 2.1
-    }
+    ProjectId = _config["GcpProjectId"],
+    ReceiverConfig = new ReceiverConfig()
+     {
+	 EntityName = "sourceTopic",
+	 CreateEntityIfNotExists = true // create the topic, default subscription and dead-letter topic/subscription
+     },
+     Sender = new SenderConfig()
+     {
+	 EntityName = "targetTopic,
+	 CreateEntityIfNotExists = true // create the topic and default subscription
+     }
 });
-
-var manager = messenger.EntityManager;
-
-// The `ToString()` method shows full information about the service bus instance, sender and receiver.
-Console.WriteLine(manager.ToString());
-
-// The entity manager also contains useful methods for getting message count and entity usage percentage.
-var senderMessageCount = await manager.GetSenderMessageCount();
-var senderEntityUsagePercent = await manager.GetSenderEntityUsagePercentage();
-var receiverEntityUsagePercent = await manager.GetReceiverEntityUsagePercentage();
-var receiverMessageCount = await manager.GetReceiverMessageCount();
-var isReceiverEntityDisabled = await manager.IsReceiverEntityDisabled();
-var isSenderEntityDisabled = await manager.IsSenderEntityDisabled();
-                
+       
 // Example of sending a single message to the configured queue.
 await messenger.Send<string>("test");
 
 // Receive one message from the configured topic (runs synchronously).
 var messageItem = messenger.ReceiveOne<string>();
 
-// Setup a subscribable to constantly listent for new messages arrive.
-// Application needs to stay alive to keep this running.  Use AppHost `RunAndBlock()` method to support this.
-// Alternative for testing is `Console.ReadLine()`.
+// Setup a subscribable to constantly stream new messages.
+// Application needs to stay alive to keep this running. Use AppHost `RunAndBlock()` method to support this.
 messenger.StartReceive<string>(10).Subscribe(async message =>
 {
     // Process messages here....
 
     // Complete the message when finished.
-    await messenger.Abandon(message);   // return message to queue/topic without completing (will be picked up again).
+    await messenger.Abandon(message);   // return message to topic without completing (will be picked up again).
     await messenger.Error(message);     // deadletter message.
     await messenger.Complete(message);  // complete and remove the message.
 });
@@ -279,46 +252,23 @@ messenger.CancelReceive<string>();
 messenger.Dispose();
 ```
 
-## Back-off Mechanism 
-
-This API comes with an optional backoff-mechanism.  It only works when the wrapper is both receiving messages from one queue/topic and then sending on to another.  
-
-When enabled (use the `EnableAutobackOff = true` config option), the code will monitor the topic its sending messages to and if it becomes greater than 90%, it will "Backoff" by stopping the receiver temporarily for 2 minutes.  After the 2 minutes are up, it will check the sender entity to see if it's fallen below the threshold of 90% and if so, will resume the receive and begin sending messages again.
-
-This will apply back pressure - i.e. the receiver entity will fill up then, so be careful when using.  Works better if the previous component (sending messages to the receiver entity also has back-off enabled).
-
-
-## *NOTE* Ones to watch out for...
-### Body Type
-There are three body types supported when sending messages - Stream, String and WCF.  By default ALL messages are sent and (expected to be) received 
-with body type *Stream".  Content as a stream is more performant, so by default String support *IS NOT* enabled.  To enable this, when instantiating
-the AzureServiceBus client and passing in the configuration, make sure to set the *SupportStringBodyType* property to _true_.
-
-This property has been retrospectively added for backwards support with existing Topics and messages.
-
-### Topic Setup - Don't enable partitioning
-Preimum and should have "EnablePartitioning" set to false.  This can only be set when the topic is being created
-so make sure that is the case when the infrastructure deployment scripts are being setup.
-
-
 ## Test Coverage
 A threshold will be added to this package to ensure the test coverage is above 80% for branches, functions and lines.  If it's not above the required threshold 
 (threshold that will be implemented on ALL of the core repositories to gurantee a satisfactory level of testing), then the build will fail.
 
 ## Compatibility
-This package has has been written in .net Standard and can be therefore be referenced from a .net Core or .net Framework application. The advantage of utilising from a .net Core application, 
-is that it can be deployed and run on a number of host operating systems, such as Windows, Linux or OSX.  Unlike referencing from the a .net Framework application, which can only run on 
-Windows (or Linux using Mono).
- 
+This package has has been written in .net Standard 2.1, therefore be only referenced from a .net Core application. The advantage of utilising from a .net Core application, 
+is that it can be deployed and run on a number of host operating systems, such as Windows, Linux or OSX.  Unlike referencing from the a .net Framework application, which can only run on Windows (or Linux using Mono).
+
 ## Setup
-This package is built using .net Standard 2.1 and requires the .net Core 3.1 SDK, it can be downloaded here: 
+This package is built using .net Standard 2.1 and requires the .net Core 3.1 SDK, which can be downloaded here: 
 https://www.microsoft.com/net/download/dotnet-core/
 
 IDE of Visual Studio or Visual Studio Code, can be downloaded here:
 https://visualstudio.microsoft.com/downloads/
 
 ## How to access this package
-All of the Cloud.Core.* packages are published to a public NuGet feed.  To consume this on your local development machine, please add the following feed to your feed sources in Visual Studio:
+All of the Cloud.Core.* packages are published to a public NuGet feed.  To consume this on your local development machine, the .nuget file is included but you can also add the following feed to your feed sources in Visual Studio:
 https://dev.azure.com/cloudcoreproject/CloudCore/_packaging?_a=feed&feed=Cloud.Core
  
 For help setting up, follow this article: https://docs.microsoft.com/en-us/vsts/package/nuget/consume?view=vsts
