@@ -205,17 +205,17 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             
             // Act/Assert
             // Messenger methods.
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.Defer(new[] {""}, null));
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatch<string>(new List<long> { 1 }));
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }));
+            Assert.Throws<NotImplementedException>(() => pubSub.Defer(new[] {""}, null).GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.ReceiveDeferredBatch<string>(new List<long> { 1 }).GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }).GetAwaiter().GetResult());
 
             // Manager methods.
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetReceiverEntityUsagePercentage());
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetSenderEntityUsagePercentage());
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetReceiverMessageCount());
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.GetSenderMessageCount());
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.IsReceiverEntityDisabled());
-            Assert.ThrowsAsync<NotImplementedException>(async () => await pubSub.EntityManager.IsSenderEntityDisabled());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverEntityUsagePercentage().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetSenderEntityUsagePercentage().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverMessageCount().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetSenderMessageCount().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.IsReceiverEntityDisabled().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.IsSenderEntityDisabled().GetAwaiter().GetResult());
 
             pubSub.Dispose();
         }
