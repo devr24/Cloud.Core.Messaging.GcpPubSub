@@ -58,7 +58,6 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             Messenger.EntityManager.DeleteEntity(StreamTopicName).GetAwaiter().GetResult();
             Messenger.EntityManager.DeleteEntity(StreamObservableTopicName).GetAwaiter().GetResult();
             Messenger.EntityManager.DeleteEntity(SecondaryTopicName).GetAwaiter().GetResult();
-            //Messenger.EntityManager.DeleteEntity(MessageFilterTopic).GetAwaiter().GetResult();
 
             // Clean up dead-letter topics.
             Messenger.EntityManager.DeleteEntity($"{TestTopicName}_deadletter").GetAwaiter().GetResult();
@@ -479,6 +478,27 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             filteredMessages.Count().Should().Be(1);
             filteredMessage.Should().NotBe(null);
             filteredMessage.Should().Be("testfilter");
+        }
+
+        /// <summary>Very the not implemented methods produce the expected errors.</summary>
+        [Fact]
+        public void Test_PubSub_NotImplemented()
+        {
+            // Arrange
+            var pubSub = new PubSubMessenger(new PubSubJsonAuthConfig()
+            {
+                JsonAuthFile = _fixture.CredentialPath,
+                ProjectId = _fixture.ProjectId
+            });
+
+            // Act/Assert - Manager methods.
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverEntityUsagePercentage().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetSenderEntityUsagePercentage().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverMessageCount().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetSenderMessageCount().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.IsReceiverEntityDisabled().GetAwaiter().GetResult());
+            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.IsSenderEntityDisabled().GetAwaiter().GetResult());
+
         }
     }
 }

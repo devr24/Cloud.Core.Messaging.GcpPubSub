@@ -201,21 +201,13 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
         public void Test_PubSubMessenger_NotImplemented()
         {
             // Arrange
-            using var pubSub = new PubSubMessenger(new PubSubConfig { ProjectId = "test" });
+            using var pubSub = new PubSubMessenger(new PubSubJsonAuthConfig() {  JsonAuthFile = "test", ProjectId = "test" });
             
             // Act/Assert
             // Messenger methods.
             Assert.Throws<NotImplementedException>(() => pubSub.Defer(new[] {""}, null).GetAwaiter().GetResult());
             Assert.Throws<NotImplementedException>(() => pubSub.ReceiveDeferredBatch<string>(new List<long> { 1 }).GetAwaiter().GetResult());
             Assert.Throws<NotImplementedException>(() => pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }).GetAwaiter().GetResult());
-
-            // Manager methods.
-            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverEntityUsagePercentage().GetAwaiter().GetResult());
-            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetSenderEntityUsagePercentage().GetAwaiter().GetResult());
-            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverMessageCount().GetAwaiter().GetResult());
-            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetSenderMessageCount().GetAwaiter().GetResult());
-            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.IsReceiverEntityDisabled().GetAwaiter().GetResult());
-            Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.IsSenderEntityDisabled().GetAwaiter().GetResult());
 
             pubSub.Dispose();
         }
