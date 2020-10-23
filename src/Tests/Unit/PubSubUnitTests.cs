@@ -253,6 +253,100 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             pubSub.Messages.ContainsKey(test).Should().BeFalse();
         }
 
+        /// <summary>Verify SenderConfig ToString overload works as expected.</summary>
+        [Fact]
+        public void Test_SenderConfig_ToStringFunctionality()
+        {
+            // Arrange
+            var config = new SenderConfig
+            {
+                EntityName = "entityName",
+                CreateEntityIfNotExists = true,
+                ProjectId = "12345"
+            };
+
+            // Act
+            var str = config.ToString();
+
+            // Assert
+            str.Should().Be("EntityName: entityName, EntityDeadLetterName: entityName_deadletter, CreateEntityIfNotExists: True");
+        }
+
+        /// <summary>Verify ReceiverConfig ToString overload works as expected.</summary>
+        [Fact]
+        public void Test_ReceiverConfig_ToStringFunctionality()
+        {
+            // Arrange
+            var config = new ReceiverConfig
+            {
+                EntityName = "entityName",
+                EntitySubscriptionName = "subscriptionName",
+                CreateEntityIfNotExists = true,
+                EntityFilter = new KeyValuePair<string, string>("testkey", "testfilter"),
+                ProjectId = "12345",
+                ReadFromErrorEntity = true
+            };
+
+            // Act
+            var str = config.ToString();
+
+            // Assert
+            str.Should().Be("EntityName: entityName, EntityDeadLetterName: entityName_deadletter, EntitySubscriptionName: subscriptionName, " +
+                            "EntityDeadLetterSubscriptionName: entityName_deadletter_default, EntityFilter: [testkey, testfilter], CreateEntityIfNotExists: True, ReadFromErrorEntity: True");
+        }
+
+        /// <summary>Verify PubSubEntityConfig ToString overload works as expected when sender and receiver are not set.</summary>
+        [Fact]
+        public void Test_PubSubEntityConfig_ToStringFunctionalityNotSet()
+        {
+            // Arrange
+            var config = new PubSubConfig()
+            {
+                ProjectId = "12345"
+            };
+
+            // Act
+            var str = config.ToString();
+
+            // Assert
+            str.Should().Be("ProjectId:12345, ReceiverInfo: [NOT SET], SenderInfo: [NOT SET]");
+        }
+
+        /// <summary>Verify PubSubConfig ToString overload works as expected.</summary>
+        [Fact]
+        public void Test_PubSubConfig_ToStringFunctionalityNotSet()
+        {
+            // Arrange
+            var config = new PubSubConfig
+            {
+                ProjectId = "12345",
+                ReceiverConfig = new ReceiverConfig
+                {
+                    EntityName = "entityName",
+                    EntitySubscriptionName = "subscriptionName",
+                    CreateEntityIfNotExists = true,
+                    EntityFilter = new KeyValuePair<string, string>("testkey", "testfilter"),
+                    ProjectId = "12345",
+                    ReadFromErrorEntity = true
+                }, 
+                Sender = new SenderConfig
+                {
+                    EntityName = "entityName",
+                    CreateEntityIfNotExists = true,
+                    ProjectId = "12345"
+                }
+            };
+
+            // Act
+            var str = config.ToString();
+
+            // Assert
+            str.Should().Be("ProjectId:12345, ReceiverInfo: EntityName: entityName, EntityDeadLetterName: entityName_deadletter, " +
+                            "EntitySubscriptionName: subscriptionName, EntityDeadLetterSubscriptionName: entityName_deadletter_default, " +
+                            "EntityFilter: [testkey, testfilter], CreateEntityIfNotExists: True, ReadFromErrorEntity: True, SenderInfo: EntityName: entityName, " +
+                            "EntityDeadLetterName: entityName_deadletter, CreateEntityIfNotExists: True");
+        }
+
         private class TestClass
         {
             public string Property1 { get; set; }
