@@ -51,7 +51,7 @@
                 await CreateSubscription(topicName, subscriptionName, deadletterName, filter);
 
             if (!deadletterSubscriptionName.IsNullOrEmpty())
-                await CreateSubscription(deadletterName, deadletterSubscriptionName, null, null);
+                await CreateSubscription(deadletterName, deadletterSubscriptionName);
         }
 
         /// <summary>
