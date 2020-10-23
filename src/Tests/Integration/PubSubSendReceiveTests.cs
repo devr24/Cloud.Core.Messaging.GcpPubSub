@@ -492,7 +492,6 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             });
 
             // Act/Assert - Manager methods.
-            Assert.Throws<InvalidOperationException>(() => pubSub.ReceiveBatchEntity<object>().GetAwaiter().GetResult());
             Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverEntityUsagePercentage().GetAwaiter().GetResult());
             Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetSenderEntityUsagePercentage().GetAwaiter().GetResult());
             Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverMessageCount().GetAwaiter().GetResult());

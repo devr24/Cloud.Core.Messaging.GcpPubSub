@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Cloud.Core.Exceptions;
 using Cloud.Core.Testing;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -364,16 +365,17 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             // Arrange
             var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
             {
-                JsonAuthFile = "fileLocation",
+                JsonAuthFile = new ConfigurationBuilder().AddJsonFile("appSettings.json").Build()["CredentialPath"],
                 ProjectId = "12345"
             });
 
             // Act/Assert
             Assert.Throws<InvalidOperationException>(() => messenger.Receive<object>(null, null));
-            Assert.Throws<InvalidOperationException>(() => messenger.ReceiveOne<object>("").GetAwaiter().GetResult());
+            Assert.Throws<ArgumentException>(() => messenger.ReceiveOne<object>("").GetAwaiter().GetResult());
             Assert.Throws<InvalidOperationException>(() => messenger.StartReceive<object>());
             Assert.Throws<InvalidOperationException>(() => messenger.ReceiveOne<object>());
-            
+            Assert.Throws<InvalidOperationException>(() => messenger.ReceiveBatchEntity<object>().GetAwaiter().GetResult());
+
             // Additional runs here purely to increase code coverage. Not particularly useful tests but it does confirm functionality.
             messenger.Complete<object>(null).GetAwaiter().GetResult();
             messenger.CompleteAll(new object[] {null}).GetAwaiter().GetResult();
