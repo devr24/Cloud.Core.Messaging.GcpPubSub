@@ -355,7 +355,7 @@
                     messageIn.OnNext(typed);
                 }
 
-                return Task.FromResult(SubscriberClient.Reply.Nack);
+                return Task.FromResult(SubscriberClient.Reply.Ack);
             });
 
             return _messagesIn.OfType<T>();
