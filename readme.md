@@ -3,14 +3,21 @@
 
 <div id="description">
 
-Gcp Pub/Sub (Queues and Topics) implementation of the messaging interfaces provided in Cloud.Core.  Abstracts queue and topic subscriptions and management.
+Gcp Pub/Sub Topics implementation of the messaging interfaces provided in Cloud.Core.  Abstracts topic and subscriptions management.
 
+**[Read full Api documentation](https://cloud1core.blob.core.windows.net/docs/Cloud.Core.Messaging.GcpPubSub/api/index.html)**
 </div>
 
-## Design
+## Setup
 
-One of the patterns used within this package (specifically when receiving messages) is the observable pattern.  This is possible because messages are "pumped" out from the receiver
-as an observable collection.  You can read more on the observable pattern here: https://docs.microsoft.com/en-us/dotnet/standard/events/observer-design-pattern
+You will need the following setup to use this package:
+
+1) Google Cloud Platform (GCP) account
+2) Instance of GCP Pub/Sub
+3) IAM setup for the GCP Pub/Sub and download of credentials json
+
+## Initialisation and Authentication 
+When you download your credentials file, there are two options (at the moment) for authenticating to GCP Pub/Sub.  As shown as follows along with initialisation:
 
 
 ## Usage
@@ -21,30 +28,53 @@ The *Cloud.Core* package contains these public interfaces for messaging (chain s
 
 </div>
 
-The *Cloud.Core* package contains these public interfaces for messaging (chain shown below).  This package implements the releavant interfaces for ServiceBus.  The main focus of this package being separate from all the other Azure specific packages is to allow for a layer of abstraction in the calling applications.
+The *Cloud.Core* package contains these public interfaces for messaging (chain shown below).  This package implements the releavant interfaces for wrapping a Message Bus.  
+The main focus of this package being separate from all the other Google Cloud Platform specific packages is to allow for a layer of abstraction in the calling applications.
 
-If in the future the calling application was to be run in AWS or Google Cloud, the only thing that would need to be changed in code is the 
-instantiation of IMessage.  Using this package, it would look like this:
+The interface also allows the implementation to switch to other available messenger types for other cloud offerings, such as Azure Storage Queue, Azure Service Bus and RabbitMQ.
 
 ```csharp
-IReactiveMessenger sbMessenger = new ServiceBusMessenger(new MsiConfig());
+IReactiveMessenger messenger = new PubSubMessenger(new PubSubJsonAuthConfig());
 ```
 
 Whereas the instantiation could easily be changed to use Google as follows:
 
 ```csharp
-IReactiveMessenger gcMessenger = new PubSubMessenger(CloudPubSubConfig());
+IReactiveMessenger messenger = new ServiceBusMessenger(new MsiConfig());
+```
+
+### Method 1 - set credentials file as Environment Variable
+You can add an environment setting called 'GOOGLE_APPLICATION_CREDENTIALS' with a path to the credentials *.json file and then the code will automatically pick these up when running.  The initialisation code would look like this:
+```csharp
+var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+{
+	JsonAuthFile = CredentialPath,
+	...
+});
+```
+_Remember to run your code in a context that has permissions to read the environment variable._
+
+### Method 2 - pass explicit path to credential file location
+If you prefer to pass an explicit path to your json credentials file (useful if you cannot access env variables, say in a test enviroment), then you can use this code:
+```csharp
+var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+{
+	JsonAuthFile = CredentialPath,
+	...
+});
 ```
 
 
+## Interface Operations
 
-### IMessenger interface 
+We can be explicit when using the messenger instances with `ISendMessages` (send operations only), `IReactiveMessenger` (streaming messages using observables) and `IMessenger` (simple callbacks for receiving messages).
+Read the full interface here: [IMessenger.cs](https://github.com/rmccabe24/Cloud.Core/blob/master/src/Cloud.Core/IMessenger.cs)
 
 If you just want to only send messages, you would consume `ISendMessages`.
 
 If you want to send and receive with a simple call back interface use the `IMessenger`.
 
-If instead you want a reactive IObservable that you can subscribe to, use the `IReactiveMessenger`.
+If instead you want a reactive IObservable that you can subscribe to, use the `IReactiveMessenger`.  The streaming functionality is very useful for messengers that don't offer push functionality out of the box, as with Azure Service Bus that works by polling the message queue.
 
 You can call `Abandon`, `Complete` and `Error` on the `IMessage` interface.
 
@@ -57,24 +87,23 @@ You can call `Abandon`, `Complete` and `Error` on the `IMessage` interface.
 - `Error` will move the message to the error queue (dead letter queue), used during critical processing errors where there may be problems with 
 validation, business rules, incorrect data, etc.
 
+### How to send a message
 
-### Why wrap the ServiceBus API?
-
-
-The main application of the IMessenger interfaces is to allow calling applications to switch between their instance adapters without changing code.  The following code demonstates this:
+The simplest way to do it is by consuming IMessenger and calling `Send` for a single message and `SendBatch` to send a batch of messages (the package handles sending the list of items in batches for you):
 
 ```csharp
-IReactiveMessenger msgQueue = new ServiceBusMessenger()
+IMessenger msn = new PubSubMessenger(configuration);
+
+msn.Send(new TestMessage{ Name = "Some Name", Stuff = "Some Stuff"  });
+
+msn.SendBatch(new List<TestMessage> {  
+  new TestMessage{ Name = "Some Name 1", Stuff = "Some Stuff 1"  },
+  new TestMessage{ Name = "Some Name 2", Stuff = "Some Stuff 2"  },
+  new TestMessage{ Name = "Some Name 3", Stuff = "Some Stuff 2"  }
+});
 ```
 
-Can easily be changed (when developed) to:
-
-```csharp
-IReactiveMessenger msgQueue = new RabbitMQMessenger()
-```
-
-
-### Send and receive messages
+## Send and receive messages
 
 The messenger implementation allows for generic [POCOs](https://en.wikipedia.org/wiki/Plain_Old_CLR_Object) class types to be used to define the type of messages being sent and received.  Using a generic allows the object types, already used within the calling app, to be reused as message contents.
 
@@ -87,168 +116,12 @@ public class TestMessage : IMessage
     public string Stuff { get; set; }
 }
 ```
-### Security and Configuration
-There are three ways you can instantiate the Blob Storage Client.  Each way dictates the security mechanism the client uses to connect.  The three mechanisms are:
 
-1. Connection String
-2. Service Principle
-3. Managed Service Identity or Managed User Identity
+Note: max allowed messages in a single batch is 1000.  So if you request a larger batch size it will be limited internally for you.
 
 
-Below are examples of instantiating each type.
 
-### 1. Connection String
-Create an instance of the Service Bus client with ConnectionConfig for connection string as follows:
 
-```csharp
-var config = new ConnectionConfig
-    {
-        ConnectionString = "<connectionstring>"
-		
-        // All other required config set here
-    };
-
-// Service Bus client.
-var messenger = new ServiceBusMessenger(config);	
-```
-Note: Instance name not required to be specified anywhere in configuration here as it is taken from the connection string.
-
-### 2. Service Principle
-Create an instance of the Blob Storage client with BlobStorageConfig for Service Principle as follows:
-
-```csharp
-var config = new ServicePrincipleConfig
-    {
-        AppId = "<appid>",
-        AppSecret = "<appsecret>",
-        TenantId = "<tenantid>",
-        SubscriptionId = "<subscriptionId>",
-        InstanceName = "<instanceName>",
-		
-        // All other required config set here
-    };
-
-// Service Bus client.
-var messenger = new ServiceBusMessenger(config);	
-```
-
-Usually the AppId, AppSecret (both of which are setup when creating a new service principle within Azure) and TenantId are specified in 
-Configuration (environment variables/AppSetting.json file/key value pair files [for Kubernetes secret store] or command line arguments).
-
-SubscriptionId can be accessed through the secret store (this should not be stored in configuration).
-
-### 3. Management Service Idenity (MSI) or MUI
-Create an instance of the Blob Storage client with MSI authentication as follows:
-
-```csharp
-var config = new MsiConfig
-    {
-        TenantId = "<tenantid>",
-        SubscriptionId = "<subscriptionId>",
-        InstanceName = "<instanceName>",
-		
-        // All other required config set here
-    };
-
-// Service Bus client.
-var messenger = new ServiceBusMessenger(config);		
-```
-
-All that's required is the instance name to connect to.  Authentication runs under the context the application is running.
-
-### Configuring the client
-The above shows the security specific configuration, there are other configurations needed.  Below is an example using Msi auth:
-
-```csharp
-var config = new ConfigurationBuilder().AddJsonFile("appSettings.json").Build();
-var msiConfig = new MsiConfig
-    {
-        TenantId = config.GetValue<string>("tenantid"),
-        InstanceName = config.GetValue<string>("instanceName"),
-        SubscriptionId = config.GetValue<string>("subscriptionId")
-		
-        // Information about the queue or topic that will be listened to.
-        Receiver = new ReceiverSetup
-        {
-            // use topic instead of queue (in this case topic - topic is set by default).
-            UseTopic = true,
-            // automatically create if its not there
-            CreateEntityIfNotExists = true, 
-            // name of topic
-            EntityName = "RobertsTestTopic", 
-            // subscription to listen on
-            EntitySubscriptionName = "RobertsTestSubscription",  
-            // (if creating) specify filter to apply to subscription.  This example filters on messages tagged version 1.0.
-            EntityFilter = new KeyValuePair<string, string>("RobertFilterExample", "Version = '1.0'"),
-            // How ofter to renew the lock on the message.  Uses the Max Allowed Locktime from service bus to make sure its 
-            // always less than the max allowed value if a larger value is specified.  Actually renews on 80% of this time.
-            LockRenewalTimeInSeconds = 60,
-            // How often to check for messages.  0.05 is the default BUT can be slowed down (or sped up) as required.
-            PollFrequencyInSeconds = 0.05,
-            // Old versions of service bus defaulted to string content.  Now it's default is stream.  There's a bit of overhead
-            // when dealing with the string types, so this is defaulted to false unless you know you want extra compatibility when
-            // setting up your listener (like listening off a subscription an old function sends to).
-            SupportStringBodyType = false
-        },
-        // Information about the queue or topic to send messages to.
-        Sender = new SenderSetup
-        {
-            // use queue instead of topic.
-            UseTopic = false,
-            // Create the queue if it doesn't already exist.
-            CreateEntityIfNotExists = true,
-            // Name of queue to send to.
-            EntityName = "RobertsTestQueue",
-            // Property "Version" for the message.  Always set, can be used for filtering.
-            MessageVersion = 2.1
-        }
-    };
-
-// Service Bus client.
-var messenger = new ServiceBusMessenger(msiConfig);		
-```
-
-This can be simplified to:
-
-```csharp
-
-  var messenger = new ServiceBusMessenger(new  MsiConfig
-  {
-      InstanceName = namespaceHelper.MessagingServiceInstanceName,
-      SubscriptionId = Settings.SubscriptionId,
-      TenantId = Settings.TenantId,
-
-      // Information about the queue or topic that will be listened to.
-      Receiver = new ReceiverSetup
-      {
-          EntityName = "RobertsTestTopic",
-          EntitySubscriptionName = "RobertsTestSubscription"
-      },
-      // Information about the queue or topic to send messages to.
-      Sender = new SenderSetup
-      {
-          // use queue instead of topic.
-          UseTopic = false,
-          EntityName = "RobertsTestQueue"
-      }
-  });
- ```
-_Note: only differences here is message version defaults to 1.0 if not specified._
-
-### How to send a message
-
-The simplest way to do it is by consuming IMessenger and calling `Send` for a single message and `SendBatch` to send a batch of messages (the package handles sending the list of items in batches for you):
-```csharp
-IMessenger msn = new ServiceBusMessenger(configuration);
-
-msn.Send(new TestMessage{ Name = "Some Name", Stuff = "Some Stuff"  });
-
-msn.SendBatch(new List<TestMessage> {  
-  new TestMessage{ Name = "Some Name 1", Stuff = "Some Stuff 1"  },
-  new TestMessage{ Name = "Some Name 2", Stuff = "Some Stuff 2"  },
-  new TestMessage{ Name = "Some Name 3", Stuff = "Some Stuff 2"  }
-});
-```
 
 
 ### Entity Disabled Exception

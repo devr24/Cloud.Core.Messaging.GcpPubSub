@@ -669,6 +669,9 @@
         {
             CreateIfNotExists();
 
+            // Work around the PubSub max batch size limitation of 1000 messages.
+            batchSize = batchSize > 1000 ? 1000 : batchSize;
+
             var isByteArray = typeof(T) == typeof(byte[]);
             var publishRequest = new PublishRequest
             {
