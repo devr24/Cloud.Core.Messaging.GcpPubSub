@@ -25,8 +25,8 @@ You can add an environment setting called 'GOOGLE_APPLICATION_CREDENTIALS' with 
 ```csharp
 var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
 {
-	JsonAuthFile = CredentialPath,
-	...
+    JsonAuthFile = CredentialPath,
+    ...
 });
 ```
 _Remember to run your code in a context that has permissions to read the environment variable._
@@ -36,8 +36,8 @@ If you prefer to pass an explicit path to your json credentials file (useful if 
 ```csharp
 var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
 {
-	JsonAuthFile = CredentialPath,
-	...
+    JsonAuthFile = CredentialPath,
+    ...
 });
 ```
 
@@ -205,9 +205,78 @@ var message = msn.ReceiveOne<TestMessage>();
 await msn.Error(message); // move to dead-letter topic
 ```
 
+### Entity Send/Recieve Authorisation
+To carry out any create or delete entity, GCP PubSub permissions are required.  The following permissions are required:
+
+- Pub/Sub Subscriber - for reading messages in a stream
+- Pub/Sub Viewer - for reaching messages one by one
+
 ## Managing Topics
 
-Todo
+### Create Topic Entity
+
+Using create entity will carry out the following:
+1) Create the topic with the name provider.
+2) Create a default subscription (if you don't specify one). This will be `{topicName}_default` - the idea with this is that no messages sent will be missed and not picked up by a topic.
+3) Creates a dead-letter topic and associates the subscription created with that topic.
+4) Creates a default subscription for the dead-letter topic - so no messages which are dead-lettered are missed.
+
+The code to carry this out would be:
+
+```csharp
+IMessenger messenger = new PubSubMessenger(new PubSubConfig { ProjectId = _config["GcpProjectId"] });
+var manager = messenger.EntityManager;
+
+await manager.CreateEntity("MyTopic");
+
+// Only create full entity if any parts don't already exist.
+await manager.CreateEntityIfNotExists("MyTopic"); 
+
+// Create topic, dead-letter topic, subscription named, and deadletter subscription if required. 
+await manager.CreateEntity("MyTopic", "MyTopicDeadletter, "MySubscription", "MySubscriptionDeadletter"); 
+```
+
+The manager has explicit methds for topic (only) and subscription (only) creation.  Example code:
+
+```csharp
+IMessenger messenger = new PubSubMessenger(new PubSubConfig { ProjectId = _config["GcpProjectId"] });
+PubSubManager manager = messenger.EntityManager;
+
+await manager.CreateTopic("MyTopic");
+await manager.CreateSubscription("MySubscription");
+```
+
+### Entity Exists
+You can check to see if a topic entity exists by using this code:
+
+```csharp
+IMessenger messenger = new PubSubMessenger(new PubSubConfig { ProjectId = _config["GcpProjectId"] });
+var manager = messenger.EntityManager;
+
+var exists = await manager.EntityExists("MyTopic");
+
+if (!exists)
+{
+   ...
+}
+```
+
+### Delete Entity
+You can also delete the topic entity with this code. Worth noting that associated subscriptions WILL be deleted.  If you do not want this behaviour then use the explicit `DeleteTopic` method also shown below:
+
+```csharp
+IMessenger messenger = new PubSubMessenger(new PubSubConfig { ProjectId = _config["GcpProjectId"] });
+var manager = messenger.EntityManager;
+
+await manager.DeleteEntity("MyTopic"); // Topic plus subscriptions deleted.
+await ((PubSubManager)manager).DeleteTopic("MyTopic"); // Only topic.
+await ((PubSubManager)manager).DeleteSubscription("MyTopic_default"); // Only subscription.
+```
+
+### Entity Manager Authorisation
+To carry out any create or delete entity, GCP PubSub permissions are required.  The following permissions are required:
+
+- Pub/Sub Admin
 
 ## Full working example
 
@@ -222,7 +291,7 @@ var messenger = new PubSubMessenger(new PubSubConfig
      },
      Sender = new SenderConfig()
      {
-	 EntityName = "targetTopic,
+	 EntityName = "targetTopic",
 	 CreateEntityIfNotExists = true // create the topic and default subscription
      }
 });
