@@ -46,9 +46,9 @@
             if (!deadletterName.IsNullOrEmpty())
                 CreateTopicIfNotExists(deadletterName).GetAwaiter().GetResult();
 
-            // If a subscription has been requested for creation, create. Along with dead-letter subscription.
+                // If a subscription has been requested for creation, create. Along with dead-letter subscription.
             if (!subscriptionName.IsNullOrEmpty())
-                await CreateSubscription(topicName, subscriptionName, deadletterName, filter);
+                await CreateSubscription(topicName, subscriptionName, filter);
 
             if (!deadletterSubscriptionName.IsNullOrEmpty())
                 await CreateSubscription(deadletterName, deadletterSubscriptionName);
@@ -59,9 +59,8 @@
         /// </summary>
         /// <param name="topicName">Name of the topic.</param>
         /// <param name="subscriptionName">Name of the subscription.</param>
-        /// <param name="deadletterTopic">The dead-letter topic.</param>
         /// <param name="filter">The filter.</param>
-        public async Task CreateSubscription(string topicName, string subscriptionName, string deadletterTopic = null, string filter = null)
+        public async Task CreateSubscription(string topicName, string subscriptionName, string filter = null)
         {
             var createSubscription = new Subscription {
                 SubscriptionName = new SubscriptionName(_projectId, subscriptionName),
@@ -71,23 +70,6 @@
             if (!filter.IsNullOrEmpty())
             {
                 createSubscription.Filter = filter;
-            }
-
-            try
-            {
-                if (!deadletterTopic.IsNullOrEmpty())
-                {
-                    // Create dead-letter topic subscription.
-                    createSubscription.DeadLetterPolicy = new DeadLetterPolicy
-                    {
-                        MaxDeliveryAttempts = 12,
-                        DeadLetterTopic = new TopicName(_projectId, deadletterTopic).ToString()
-                    };
-                }
-            }
-            catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
-            {
-
             }
 
             try

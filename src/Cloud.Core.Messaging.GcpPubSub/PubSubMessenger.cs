@@ -139,7 +139,7 @@
         /// <param name="messages">The messages.</param>
         /// <param name="properties">The properties.</param>
         /// <returns>System.Threading.Tasks.Task.</returns>
-        public async Task Send<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null) where T : class
+        public async Task SendBatch<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null) where T : class
         {
             // Calls internal send method directly, so topic name can be passed along.
             await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), messages, properties, null, 1);
@@ -201,6 +201,30 @@
         /// <summary>
         /// Gets a single message of type T.
         /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="subscriptionName">The subscription to receive from.</param>
+        /// <returns>System.Threading.Tasks.Task.</returns>
+        public async Task<T> ReceiveOne<T>(string subscriptionName) where T : class
+        {
+            var result = await InternalReceiveBatch<T>(subscriptionName, 1);
+            return result?.FirstOrDefault()?.Body;
+        }
+
+        /// <summary>
+        /// Read a batch of messages from the given subscription name name.
+        /// </summary>
+        /// <typeparam name="T">Type of object returned.</typeparam>
+        /// <param name="subscriptionName">The subscription to receive from.</param>
+        /// <param name="batchSize">Size of the batch of messages to retrieve.</param>
+        /// <returns>System.Threading.Tasks.Task.</returns>
+        public async Task<IEnumerable<IMessageEntity<T>>> ReceiveBatch<T>(string subscriptionName, int batchSize = 100) where T : class
+        {
+            return await InternalReceiveBatch<T>(subscriptionName, batchSize);
+        }
+
+        /// <summary>
+        /// Gets a single message of type T.
+        /// </summary>
         /// <typeparam name="T">The type of the message returned.</typeparam>
         /// <returns>The typed T.</returns>
         public T ReceiveOne<T>() where T : class
@@ -223,7 +247,7 @@
         }
 
         /// <summary>
-        /// Read a batch of typed messages in a synchronous manner.
+        /// Read a batch of typed messages.
         /// </summary>
         /// <typeparam name="T">Type of object on the entity.</typeparam>
         /// <param name="batchSize">Size of the batch.</param>
@@ -235,14 +259,24 @@
         }
 
         /// <summary>
-        /// Receives a batch of message in a synchronous manner of type IMessageEntity types.
+        /// Receives a batch of messages of type IMessageEntity.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="batchSize">Size of the batch.</param>
         /// <returns>IMessageEntity&lt;T&gt;.</returns>
+        /// <exception cref="InvalidOperationException">ReceiverConfig must be set to read messages.</exception>
         public async Task<List<IMessageEntity<T>>> ReceiveBatchEntity<T>(int batchSize) where T : class
         {
-            return await InternalReceiveBatch<T>(batchSize);
+            // Ensure config is setup.
+            if (Config.ReceiverConfig == null)
+                throw new InvalidOperationException("Receiver configuration must be set");
+
+            // Determine whether to read from deal-letter topic or normal topic, depending on the flag.
+            var subscriptionName = Config.ReceiverConfig.ReadFromErrorEntity
+                ? Config.ReceiverConfig.EntityDeadLetterSubscriptionName
+                : Config.ReceiverConfig.EntitySubscriptionName;
+
+            return await InternalReceiveBatch<T>(subscriptionName, batchSize);
         }
 
         /// <summary>
@@ -253,9 +287,15 @@
         /// <param name="successCallback">The <see cref="T:System.Action`1" /> delegate that will be called for each message received.</param>
         /// <param name="errorCallback">The <see cref="T:System.Action`1" /> delegate that will be called when an error occurs.</param>
         /// <param name="batchSize">The size of the batch when reading for a queue.</param>
+        /// <exception cref="InvalidOperationException">ReceiverConfig must be set to read messages.</exception>
         public void Receive<T>(Action<T> successCallback, Action<Exception> errorCallback, int batchSize = 10) where T : class
         {
+            // Ensure config is setup.
+            if (Config.ReceiverConfig == null)
+                throw new InvalidOperationException("Receiver configuration must be set");
+
             CreateIfNotExists();
+
             _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.ReadFromErrorEntity
                     ? Config.ReceiverConfig.EntityDeadLetterName
                     : Config.ReceiverConfig.EntitySubscriptionName),
@@ -291,9 +331,15 @@
         /// <typeparam name="T">The type of the message returned by the observable.</typeparam>
         /// <param name="batchSize">The size of the batch when reading from a queue.</param>
         /// <returns>The typed <see cref="T:System.IObservable`1" /> that you subscribed to.</returns>
+        /// <exception cref="InvalidOperationException">ReceiverConfig must be set to read messages.</exception>
         public IObservable<T> StartReceive<T>(int batchSize = 10) where T : class
         {
+            // Ensure config is setup.
+            if (Config.ReceiverConfig == null)
+                throw new InvalidOperationException("Receiver configuration must be set");
+
             CreateIfNotExists();
+
             _receiverClient ??= SubscriberClient.CreateAsync(new SubscriptionName(Config.ProjectId, Config.ReceiverConfig.ReadFromErrorEntity
                     ? Config.ReceiverConfig.EntityDeadLetterName
                     : Config.ReceiverConfig.EntitySubscriptionName),
@@ -432,29 +478,6 @@
             }
         }
 
-        private bool TryGetMessageEntityBody<T>(T message, out object entity) where T : class
-        {
-            entity = null;
-
-            var typeName = typeof(T).Name;
-            //var iseqi = (typeof(PubSubMessageEntity<>)) == message.GetType().UnderlyingSystemType;
-
-            if (typeName == "IMessageEntity`1")
-            {
-                var body = message.GetPropertyValueByName("body");
-                entity = body;
-
-                //Type d1 = typeof(PubSubMessageEntity<>);
-                //Type[] typeArgs = { body.GetType() };
-                //Type constructed = d1.MakeGenericType(typeArgs);
-                //object o = Activator.CreateInstance(constructed);
-                
-                return true;
-            }
-
-            return false;
-        }
-
         /// <summary>
         /// Abandons a message by returning it to the queue.
         /// </summary>
@@ -562,6 +585,7 @@
             throw new NotImplementedException();
         }
 
+        /// <summary>Creates topics and subscriptions if they do not exist.</summary>
         private void CreateIfNotExists()
         {
             // Build receiverConfig.
@@ -580,6 +604,8 @@
             }
         }
 
+        /// <summary>Gets the google API credentials.</summary>
+        /// <returns>Grpc.Core.ChannelCredentials.</returns>
         [ExcludeFromCodeCoverage]
         private ChannelCredentials GetCredentials()
         {
@@ -609,6 +635,33 @@
             }
 
             return _credentials;
+        }
+
+        /// <summary>
+        /// Works out if the type {T} message is IMessageEntity type, and if so, returns the MessageEntity.Body.
+        /// Used when looking up the key in the message dictionary.
+        /// </summary>
+        /// <typeparam name="T">Type of the message.</typeparam>
+        /// <param name="message">The message.</param>
+        /// <param name="entity">The entity output if found to be MessageEntity. Taken from Body property.</param>
+        /// <returns>System.Boolean.</returns>
+        private bool TryGetMessageEntityBody<T>(T message, out object entity) where T : class
+        {
+            const string messageEntityName = "IMessageEntity`1";
+            entity = null;
+
+            var typeName = typeof(T).Name;
+
+            // Check if the type of the message is the same as the message entity type.
+            if (typeName == messageEntityName)
+            {
+                // Grab the object from the MessageEntity.Body property.
+                var body = message.GetPropertyValueByName("body");
+                entity = body;
+                return true; // True, it was message entity type.
+            }
+
+            return false; // False, it was not message entity type.
         }
 
         /// <summary>
@@ -665,19 +718,15 @@
         /// Internals the receive batch.  Always returns list of messages back but will be empty if none where returned from the server.
         /// </summary>
         /// <typeparam name="T">Type of messages to serialize to.</typeparam>
+        /// <param name="subscriptionName">Name of the subscription.</param>
         /// <param name="batchSize">Size of the batch.</param>
         /// <returns>System.Threading.Tasks.Task&lt;System.Collections.Generic.List&lt;Cloud.Core.IMessageEntity&lt;T&gt;&gt;&gt;.</returns>
-        private async Task<List<IMessageEntity<T>>> InternalReceiveBatch<T>(int batchSize) where T : class
+        private async Task<List<IMessageEntity<T>>> InternalReceiveBatch<T>(string subscriptionName, int batchSize) where T : class
         {
             // Ensure the receiver topic/subscription is setup first of all before trying to receive.
             CreateIfNotExists();
 
             var batch = new List<IMessageEntity<T>>();
-
-            // Determine whether to read from deal-letter topic or normal topic, depending on the flag.
-            var subscriptionName = Config.ReceiverConfig.ReadFromErrorEntity
-                ? Config.ReceiverConfig.EntityDeadLetterSubscriptionName
-                : Config.ReceiverConfig.EntitySubscriptionName;
 
             // Make the read request to Gcp PubSub.
             PullResponse response = await ManagementClient.PullAsync(new SubscriptionName(Config.ProjectId, subscriptionName), false, batchSize);

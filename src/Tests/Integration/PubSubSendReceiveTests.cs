@@ -20,6 +20,10 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         public string ProjectId { get; }
         public string CredentialPath { get; }
         public string TestTopicName { get; }
+        public string StreamTopicName => $"{TestTopicName}_stream";
+        public string StreamObservableTopicName => $"{TestTopicName}_streamObs";
+        public string SecondaryTopicName => $"{TestTopicName}_secondary";
+        public string MessageFilterTopic => $"{TestTopicName}_filtering";
 
         public PubSubTestsFixture()
         {
@@ -49,12 +53,18 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
         public void Dispose()
         {
-            // clean up test data from the database
+            // Clean up topics.
             Messenger.EntityManager.DeleteEntity(TestTopicName).GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity(StreamTopicName).GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity(StreamObservableTopicName).GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity(SecondaryTopicName).GetAwaiter().GetResult();
+            //Messenger.EntityManager.DeleteEntity(MessageFilterTopic).GetAwaiter().GetResult();
+
+            // Clean up dead-letter topics.
             Messenger.EntityManager.DeleteEntity($"{TestTopicName}_deadletter").GetAwaiter().GetResult();
-            Messenger.EntityManager.DeleteEntity($"{TestTopicName}_stream").GetAwaiter().GetResult();
-            Messenger.EntityManager.DeleteEntity($"{TestTopicName}_streamObs").GetAwaiter().GetResult();
-            Messenger.EntityManager.DeleteEntity("topic2").GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity($"{StreamTopicName}_deadletter").GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity($"{StreamObservableTopicName}_deadletter").GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity($"{SecondaryTopicName}_deadletter").GetAwaiter().GetResult();
         }
     }
 
@@ -248,7 +258,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Act
             _fixture.Messenger.Send(lorem).GetAwaiter().GetResult();
 
-            var msg = _fixture.Messenger.ReceiveOne<string>();
+            var msg = _fixture.Messenger.ReceiveOneEntity<string>();
             _fixture.Messenger.Error(msg, "Something went wrong!").GetAwaiter().GetResult();
             var deadletterMsg = deadletterReader.ReceiveOneEntity<string>();
 
@@ -269,12 +279,12 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 ProjectId = _fixture.ProjectId,
                 ReceiverConfig = new ReceiverConfig()
                 {
-                    EntityName = $"{_fixture.TestTopicName}_streamObs",
+                    EntityName = _fixture.StreamObservableTopicName,
                     CreateEntityIfNotExists = true
                 },
                 Sender = new SenderConfig
                 {
-                    EntityName = $"{_fixture.TestTopicName}_streamObs",
+                    EntityName = _fixture.StreamObservableTopicName,
                     CreateEntityIfNotExists = true
                 }
             });
@@ -329,12 +339,12 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
                 ProjectId = _fixture.ProjectId,
                 ReceiverConfig = new ReceiverConfig
                 {
-                    EntityName = $"{_fixture.TestTopicName}_stream",
+                    EntityName = _fixture.StreamTopicName,
                     CreateEntityIfNotExists = true
                 },
                 Sender = new SenderConfig
                 {
-                    EntityName = $"{_fixture.TestTopicName}_stream",
+                    EntityName = _fixture.StreamTopicName,
                     CreateEntityIfNotExists = true
                 }
             });
@@ -408,21 +418,21 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
             // Act
             // Create topics
-            manger.CreateTopicIfNotExists("topic2").GetAwaiter().GetResult();
-            manger.CreateSubscription("topic2", "topic2_default").GetAwaiter().GetResult();
+            manger.CreateTopicIfNotExists(_fixture.SecondaryTopicName).GetAwaiter().GetResult();
+            manger.CreateSubscription(_fixture.SecondaryTopicName, $"{_fixture.SecondaryTopicName}_default").GetAwaiter().GetResult();
 
             // Send to topics
             _fixture.Messenger.Send(lorem1).GetAwaiter().GetResult();
-            ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2).GetAwaiter().GetResult();
-            ((PubSubMessenger)_fixture.Messenger).Send("topic2", lorem2, new []{  new KeyValuePair<string, object>("prop1","prop1val")  }).GetAwaiter().GetResult(); // used for branch coverage
-            ((PubSubMessenger)_fixture.Messenger).Send("topic2", new [] { lorem2 }, new[] { new KeyValuePair<string, object>("prop1", "prop1val") }).GetAwaiter().GetResult(); // used for branch coverage
+            ((PubSubMessenger)_fixture.Messenger).Send(_fixture.SecondaryTopicName, lorem2).GetAwaiter().GetResult();
+            ((PubSubMessenger)_fixture.Messenger).Send(_fixture.SecondaryTopicName, lorem2, new []{  new KeyValuePair<string, object>("prop1","prop1val")  }).GetAwaiter().GetResult(); // used for branch coverage
+            ((PubSubMessenger)_fixture.Messenger).SendBatch(_fixture.SecondaryTopicName, new [] { lorem2 }, new[] { new KeyValuePair<string, object>("prop1", "prop1val") }).GetAwaiter().GetResult(); // used for branch coverage
 
             // Read from topic 1
             var msg1 = _fixture.Messenger.ReceiveOne<string>();
             _fixture.Messenger.Complete(msg1).GetAwaiter().GetResult();
 
             // Update receiver to read from topic 2
-            _fixture.ReactiveMessenger.UpdateReceiver("topic2");
+            _fixture.ReactiveMessenger.UpdateReceiver(_fixture.SecondaryTopicName);
             var msg2 = _fixture.Messenger.ReceiveOne<string>();
             _fixture.Messenger.Complete(msg2).GetAwaiter().GetResult();
 
@@ -432,6 +442,40 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Assert
             msg1.Should().Be(lorem1);
             msg2.Should().Be(lorem2);
+        }
+
+        /// <summary>Verify messages can be filtered when sent to subscriptions.</summary>
+        [Fact]
+        public void Test_PubSubMessenger_MessageFiltering()
+        {
+            // Arrange
+            var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+            {
+                JsonAuthFile = _fixture.CredentialPath,
+                ProjectId = _fixture.ProjectId
+            });
+            var manager = messenger.EntityManager as PubSubManager;
+
+            // Act
+            // Create the filter topic for testing.
+            manager.CreateTopic(_fixture.MessageFilterTopic, null, "defaultsub").GetAwaiter().GetResult();
+            manager.CreateSubscription(_fixture.MessageFilterTopic, "filteredsub", "attributes:pickme").GetAwaiter().GetResult();
+
+            // Send two messages, one that wont be picked up by the filter subscription and the other that
+            // will.  The result is two messages to the defaultsub, one to filteredsub
+            messenger.Send(_fixture.MessageFilterTopic, "test").GetAwaiter().GetResult();
+            messenger.Send(_fixture.MessageFilterTopic, "testfilter", new KeyValuePair<string, object>[]
+            {
+                new KeyValuePair<string, object>("pickme", "please") 
+            }).GetAwaiter().GetResult();
+
+            // Receive from both subscriptions.
+            var nonFilteredMessages = messenger.ReceiveBatch<string>("defaultsub", 100).GetAwaiter().GetResult();
+            var filteredMessages = messenger.ReceiveBatch<string>("filteredsub", 100).GetAwaiter().GetResult();
+
+            // Assert 
+            nonFilteredMessages.Count().Should().Be(2);
+            filteredMessages.Count().Should().Be(1);
         }
     }
 }

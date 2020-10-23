@@ -231,6 +231,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             // Act
             pubSub.Messages.AddOrUpdate(test, null);
             pubSub.Abandon(test).GetAwaiter().GetResult();
+            pubSub.Abandon<object>(null).GetAwaiter().GetResult(); // done for branch coverage.
 
             // Act/Assert
             pubSub.Messages.ContainsKey(test).Should().BeFalse();
