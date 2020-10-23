@@ -369,9 +369,8 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             });
 
             // Act/Assert
-            Assert.ThrowsAsync<InvalidOperationException>(async () => await messenger.ReceiveBatchEntity<object>());
             Assert.Throws<InvalidOperationException>(() => messenger.Receive<object>(null, null));
-            Assert.ThrowsAsync<InvalidOperationException>(() => messenger.ReceiveOne<object>(""));
+            Assert.Throws<InvalidOperationException>(() => messenger.ReceiveOne<object>("").GetAwaiter().GetResult());
             Assert.Throws<InvalidOperationException>(() => messenger.StartReceive<object>());
             Assert.Throws<InvalidOperationException>(() => messenger.ReceiveOne<object>());
             

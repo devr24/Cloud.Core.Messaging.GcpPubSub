@@ -53,6 +53,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             ((PubSubManager)pubsub.EntityManager).DeleteEntity(topicName).GetAwaiter().GetResult();
             ((PubSubManager)pubsub.EntityManager).DeleteTopic($"{topicName}_deadletter").GetAwaiter().GetResult();
             ((PubSubManager)pubsub.EntityManager).DeleteSubscription($"{topicName}_deadletter_default").GetAwaiter().GetResult();
+            ((PubSubManager)pubsub.EntityManager).DeleteSubscription($"{topicName}_deadletter_default").GetAwaiter().GetResult(); // done twice for branch coverage.
             ((PubSubManager)pubsub.EntityManager).DeleteTopic(topicName).GetAwaiter().GetResult(); // done twice for branch coverage.
 
             // Attempt to create if not exists

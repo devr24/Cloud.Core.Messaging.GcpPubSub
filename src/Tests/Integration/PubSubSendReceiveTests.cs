@@ -482,7 +482,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
         /// <summary>Very the not implemented methods produce the expected errors.</summary>
         [Fact]
-        public void Test_PubSub_NotImplemented()
+        public void Test_PubSubMessenger_NotImplemented()
         {
             // Arrange
             var pubSub = new PubSubMessenger(new PubSubJsonAuthConfig()
@@ -492,6 +492,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             });
 
             // Act/Assert - Manager methods.
+            Assert.Throws<InvalidOperationException>(() => pubSub.ReceiveBatchEntity<object>().GetAwaiter().GetResult());
             Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverEntityUsagePercentage().GetAwaiter().GetResult());
             Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetSenderEntityUsagePercentage().GetAwaiter().GetResult());
             Assert.Throws<NotImplementedException>(() => pubSub.EntityManager.GetReceiverMessageCount().GetAwaiter().GetResult());
