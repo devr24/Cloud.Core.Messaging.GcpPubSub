@@ -159,6 +159,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             // Act/Assert
             serviceCollection.AddPubSubSingleton<IReactiveMessenger>(new PubSubConfig { ProjectId = "test" });
             serviceCollection.ContainsService(typeof(IReactiveMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
             serviceCollection.ContainsService(typeof(NamedInstanceFactory<IReactiveMessenger>)).Should().BeTrue();
             serviceCollection.Clear();
 

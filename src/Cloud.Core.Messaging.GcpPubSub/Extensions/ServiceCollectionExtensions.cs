@@ -27,6 +27,7 @@ namespace Microsoft.Extensions.DependencyInjection
             }
 
             services.AddSingleton(typeof(T), pubSubInstance);
+            services.AddSingleton(pubSubInstance);
 
             // Ensure there's a NamedInstance factory to allow named collections of the messenger.
             services.AddFactoryIfNotAdded<T>();
@@ -53,6 +54,7 @@ namespace Microsoft.Extensions.DependencyInjection
             }
 
             services.AddSingleton(typeof(T), pubSubInstance);
+            services.AddSingleton(pubSubInstance);
 
             // Ensure there's a NamedInstance factory to allow named collections of the messenger.
             services.AddFactoryIfNotAdded<T>();
