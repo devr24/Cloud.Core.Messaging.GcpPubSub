@@ -41,17 +41,20 @@
         public async Task CreateTopic(string topicName, string deadletterName, string subscriptionName = null, string deadletterSubscriptionName = null, string filter = null)
         {
             // Create the topic and the dead-letter equivalent.
-            CreateTopicIfNotExists(topicName).GetAwaiter().GetResult();
-
             if (!deadletterName.IsNullOrEmpty())
-                CreateTopicIfNotExists(deadletterName).GetAwaiter().GetResult();
+            {
+                if (await CreateTopicIfNotExists(deadletterName) && !deadletterSubscriptionName.IsNullOrEmpty())
+                {
+                    await CreateSubscription(deadletterName, deadletterSubscriptionName);
+                }
+            }
 
-            // If a subscription has been requested for creation, create. Along with dead-letter subscription.
-            if (!subscriptionName.IsNullOrEmpty())
-                await CreateSubscription(topicName, subscriptionName, filter);
-
-            if (!deadletterSubscriptionName.IsNullOrEmpty())
-                await CreateSubscription(deadletterName, deadletterSubscriptionName);
+            if (await CreateTopicIfNotExists(topicName))
+            {
+                // If a subscription has been requested for creation, create. Along with dead-letter subscription.
+                if (!subscriptionName.IsNullOrEmpty())
+                    await CreateSubscription(topicName, subscriptionName, filter, deadletterName);
+            }
         }
 
         /// <summary>
@@ -60,11 +63,15 @@
         /// <param name="topicName">Name of the topic.</param>
         /// <param name="subscriptionName">Name of the subscription.</param>
         /// <param name="filter">The filter.</param>
-        public async Task CreateSubscription(string topicName, string subscriptionName, string filter = null)
+        /// <param name="deadletterName">Name of the dead-letter topic.</param>
+        /// <returns>
+        ///   <c>true</c> if created, <c>false</c> if already exists.</returns>
+        public async Task<bool> CreateSubscription(string topicName, string subscriptionName, string filter = null, string deadletterName = null)
         {
-            var createSubscription = new Subscription {
+            var createSubscription = new Subscription
+            {
                 SubscriptionName = new SubscriptionName(_projectId, subscriptionName),
-                Topic = new TopicName(_projectId, topicName).ToString()
+                Topic = new TopicName(_projectId, topicName).ToString(),
             };
 
             if (!filter.IsNullOrEmpty())
@@ -72,20 +79,33 @@
                 createSubscription.Filter = filter;
             }
 
+            if (!deadletterName.IsNullOrEmpty())
+            {
+                createSubscription.DeadLetterPolicy = new DeadLetterPolicy
+                {
+                    MaxDeliveryAttempts = 12,
+                    DeadLetterTopic = new TopicName(_projectId, deadletterName).ToString()
+                };
+            }
+
             try
             {
                 // Create topic subscription.
                 await _receiverSubscriptionClient.CreateSubscriptionAsync(createSubscription);
+                return true;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
             {
-
+                return false;
             }
         }
 
-        /// <summary>Deletes the specified subscription.</summary>
+        /// <summary>
+        /// Deletes the specified subscription.
+        /// </summary>
         /// <param name="subscriptionName">Name of the subscription.</param>
-        public async Task DeleteSubscription(string subscriptionName)
+        /// <returns><c>true</c> if deleted, <c>false</c> if not found.</returns>
+        public async Task<bool> DeleteSubscription(string subscriptionName)
         {
             try
             {
@@ -93,10 +113,12 @@
                 await _receiverSubscriptionClient.DeleteSubscriptionAsync(new DeleteSubscriptionRequest {
                     SubscriptionAsSubscriptionName = new SubscriptionName(_projectId, subscriptionName),
                 });
+                return true;
             }
             catch (RpcException e) when(e.StatusCode == StatusCode.NotFound)
             {
                 // Not found error.
+                return false;
             }
         }
 
@@ -104,7 +126,7 @@
         /// Check if the subscription exists.
         /// </summary>
         /// <param name="subscriptionName">Name of the subscription.</param>
-        /// <returns><c>true</c> if exists, <c>false</c> otherwise.</returns>
+        /// <returns><c>true</c> if exists, <c>false</c> if not found.</returns>
         public async Task<bool> SubscriptionExists(string subscriptionName)
         {
             try
@@ -126,7 +148,7 @@
 
         /// <summary>Check if the topic exists.</summary>
         /// <param name="topicName">Name of the topic.</param>
-        /// <returns><c>true</c> if exists, <c>false</c> otherwise.</returns>
+        /// <returns><c>true</c> if topic exists, <c>false</c> otherwise.</returns>
         public async Task<bool> TopicExists(string topicName)
         {
             try
@@ -146,33 +168,72 @@
             }
         }
 
-        /// <summary>Deletes the specified topic.</summary>
+        /// <summary>
+        /// Deletes the specified topic.
+        /// </summary>
         /// <param name="topicName">Name of the topic.</param>
-        public async Task DeleteTopic(string topicName)
+        /// <returns><c>true</c> if deleted, <c>false</c> if not found.</returns>
+        public async Task<bool> DeleteTopic(string topicName)
         {
             try
             {
                 await _publisherServiceApiClient.DeleteTopicAsync(new TopicName(_projectId, topicName));
+                return true;
             }
             catch (RpcException e) when (e.StatusCode == StatusCode.NotFound)
             {
                 // If it wasn't found, then do nothing as non-existence was the desired result.
+                return false;
             }
         }
 
-        /// <summary>Creates the topic if it does not exist.</summary>
+        /// <summary>
+        /// Creates the topic if it does not exist.
+        /// </summary>
         /// <param name="topicName">Name of the topic.</param>
-        public async Task CreateTopicIfNotExists(string topicName)
+        /// <returns><c>true</c> if created, <c>false</c> if not (already exists).</returns>
+        public async Task<bool> CreateTopicIfNotExists(string topicName)
         {
             try
             {
                 await _publisherServiceApiClient.CreateTopicAsync(new TopicName(_projectId, topicName));
+                return true;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
             {
                 // If it already exists do nothing as that was the desired outcome.
+                return false;
             }
         }
+
+        /// <summary>
+        /// Creates the topic, along with default subscription/dead-letter topic/subscription, if the topic does not exists.
+        /// </summary>
+        /// <param name="topicName">Name of the topic to create if not already exists.</param>
+        /// <param name="createDefaults">If set to <c>true</c> [create default subscription, as well dead-letter topic/subscription].</param>
+        /// <returns><c>true</c> if created, <c>false</c> if not.</returns>
+        public async Task<bool> CreateTopicIfNotExists(string topicName, bool createDefaults)
+        {
+            // If the topic does not exist, create the topic along with the default subscriptions and dead-letter topic/subscription.
+            if (!await TopicExists(topicName))
+            {
+                // Build defaults.
+                var defaultConfig = new ReceiverConfig { EntityName = topicName };
+
+                // Set depending on flag.
+                string subscription = createDefaults ? defaultConfig.EntitySubscriptionName : null;
+                string deadletterName = createDefaults ? defaultConfig.EntityDeadLetterName : null;
+                string deadletterSubscription = createDefaults ? defaultConfig.EntityDeadLetterSubscriptionName : null;
+
+                // Create...
+                await CreateTopic(topicName, deadletterName, subscription, deadletterSubscription);
+
+                return true;
+            }
+
+            return false;
+        }
+
 
         #region Interface Methods
 

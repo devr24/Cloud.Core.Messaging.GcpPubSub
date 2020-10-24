@@ -20,6 +20,51 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             _projectId = _config["GcpProjectId"];
         }
 
+        /// <summary>Veridy create if not exists generates all the defaults.</summary>
+        [Fact]
+        public void Test_PubSubManager_CreateTopicIfNotExists()
+        {
+            // Arrange
+            var manager = new PubSubMessenger(new PubSubJsonAuthConfig()
+            {
+                JsonAuthFile = _credentialPath,
+                ProjectId = _projectId,
+            }).EntityManager as PubSubManager;
+            var topicName = $"testTopic_creation";
+
+            try
+            {
+                // Act
+                var topicExistsBefore = manager.TopicExists(topicName).GetAwaiter().GetResult();
+                var subscriptionExistsBefore = manager.SubscriptionExists($"{topicName}_default").GetAwaiter().GetResult();
+                var deadletterTopicExistBefore = manager.TopicExists($"{topicName}_deadletter_default").GetAwaiter().GetResult();
+                var deadletterSubscriptionExistsBefore = manager.SubscriptionExists($"{topicName}_deadletter_default").GetAwaiter().GetResult();
+
+                // Main action to test.
+                manager.CreateTopicIfNotExists(topicName, true).GetAwaiter().GetResult();
+
+                var topicExistAfter = manager.TopicExists(topicName).GetAwaiter().GetResult();
+                var subscriptionExistsAfter = manager.SubscriptionExists($"{topicName}_default").GetAwaiter().GetResult();
+                var deadletterTopicExistAfter = manager.TopicExists($"{topicName}_deadletter").GetAwaiter().GetResult();
+                var deadletterSubscriptionExistsAfter = manager.SubscriptionExists($"{topicName}_deadletter_default").GetAwaiter().GetResult();
+
+                // Assert
+                topicExistsBefore.Should().BeFalse();
+                subscriptionExistsBefore.Should().BeFalse();
+                deadletterTopicExistBefore.Should().BeFalse();
+                deadletterSubscriptionExistsBefore.Should().BeFalse();
+                topicExistAfter.Should().BeTrue();
+                subscriptionExistsAfter.Should().BeTrue();
+                deadletterTopicExistAfter.Should().BeTrue();
+                deadletterSubscriptionExistsAfter.Should().BeTrue();
+            }
+            finally
+            {
+                manager.DeleteEntity(topicName).GetAwaiter().GetResult();
+                manager.DeleteEntity($"{topicName}_deadletter").GetAwaiter().GetResult();
+            }
+        }
+
         /// <summary>
         /// Verify topics can be managed appropriately using the entity manager.
         /// Note: This test really needs broken up into individual tests but for time's sake I've kept in one for now.
