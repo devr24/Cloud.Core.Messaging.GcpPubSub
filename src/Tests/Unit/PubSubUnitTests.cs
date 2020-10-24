@@ -159,8 +159,19 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             // Act/Assert
             serviceCollection.AddPubSubSingleton<IReactiveMessenger>(new PubSubConfig { ProjectId = "test" });
             serviceCollection.ContainsService(typeof(IReactiveMessenger)).Should().BeTrue();
-            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
             serviceCollection.ContainsService(typeof(NamedInstanceFactory<IReactiveMessenger>)).Should().BeTrue();
+            serviceCollection.Clear();
+
+            serviceCollection.AddPubSubSingleton(new PubSubConfig { ProjectId = "test" });
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
+            serviceCollection.Clear();
+
+            serviceCollection.AddPubSubSingletonNamed("test", new PubSubConfig { ProjectId = "test" });
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
+            var resolvedFactory = serviceCollection.BuildServiceProvider().GetService<NamedInstanceFactory<PubSubMessenger>>();
+            resolvedFactory["test"].Should().NotBeNull();
             serviceCollection.Clear();
 
             serviceCollection.AddPubSubSingletonNamed<IMessenger>("key1", new PubSubConfig { ProjectId = "key1" });

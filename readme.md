@@ -314,6 +314,67 @@ To carry out any create or delete entity, GCP PubSub permissions are required.  
 
 - Pub/Sub Admin
 
+## Using Service Collection Extensions
+
+For ease of use, there's a convenient way to add to the service collection IOC container during a typical Startup of an application.  Here's how adding the messenger without the extension would look:
+
+```csharp
+public class Startup
+{
+    public void ConfigureServices(IConfiguration config, ILogger logger, IServiceCollection services)
+    {
+        // Setup application settings (options).
+        var settings = config.BindBaseSection<AppSettings>();
+        services.AddSingleton(settings);
+
+		services.AddSingleton(new PubSubMessenger(new PubSubConfig {
+            ProjectId = "projectid",
+        });
+		// OR to use one of the interfaces
+		services.AddSingleton<IReactiveMessenger>(new PubSubMessenger(new PubSubConfig {
+            ProjectId = "projectid",
+        });
+		services.AddSingleton<IMessenger>(new PubSubMessenger(new PubSubConfig {
+            ProjectId = "projectid",
+        });
+		
+		// Because there is more than one, we need to manually wire up the named instance factory for consumption with the specific type.
+		services.AddSingleton<NamedInstanceFactory<IMessenger>>();
+		
+		... 
+    }
+}
+```
+
+And here's how it can be replaced using the extensions:
+
+```csharp
+public class Startup
+{
+    public void ConfigureServices(IConfiguration config, ILogger logger, IServiceCollection services)
+    {
+        // Setup application settings (options).
+        var settings = config.BindBaseSection<AppSettings>();
+        services.AddSingleton(settings);
+
+		services.AddPubSubSingleton(new PubSubConfig {
+            ProjectId = "projectid" 
+		});
+		// OR to use one of the interfaces
+		services.AddPubSubSingleton<IReactiveMessenger>(new PubSubConfig {
+            ProjectId = "projectid",
+        });
+		services.AddPubSubSingleton<IMessenger>(new PubSubConfig {
+            ProjectId = "projectid",
+        });
+		
+		... 
+    }
+}
+```
+
+It doesn't look like a massive difference but the main thing is you get the named instance factory setup for free with the call.
+
 ## Full working example
 
 ```csharp       
