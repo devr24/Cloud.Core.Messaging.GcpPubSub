@@ -210,10 +210,10 @@ await msn.Error(message); // move to dead-letter topic
 ```
 
 ### Entity Send/Recieve Authorisation
-To carry out any create or delete entity, GCP PubSub permissions are required.  The following permissions are required:
+To carry out any reading/publishing of messages, the follwoing GCP PubSub permissions are required:
 
 - Pub/Sub Subscriber - for reading messages in a stream
-- Pub/Sub Viewer - for reaching messages one by one
+- Pub/Sub Viewer - for receiving messages one by one
 
 ## Managing Topics
 
@@ -310,7 +310,7 @@ var filteredMessages = messenger.ReceiveBatch<string>("filteredsub", 100).GetAwa
 Full filtering documtation on GCP Pub/Sub can be found here: [https://cloud.google.com/pubsub/docs/filtering](https://cloud.google.com/pubsub/docs/filtering)
 
 ## Entity Manager Authorisation
-To carry out any create or delete entity, GCP PubSub permissions are required.  The following permissions are required:
+To carry out any create or delete entity (topics/subscriptions), the following GCP PubSub permissions are required:
 
 - Pub/Sub Admin
 
