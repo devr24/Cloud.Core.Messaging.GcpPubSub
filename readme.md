@@ -13,8 +13,9 @@ Gcp Pub/Sub Topics implementation of the messaging interfaces provided in Cloud.
 You will need the following setup to use this package:
 
 1) Google Cloud Platform (GCP) account
-2) Instance of GCP Pub/Sub
-3) IAM setup for the GCP Pub/Sub and download of credentials json
+2) GCP Project (your Project Id is needed for config)
+3) Instance of GCP Pub/Sub within your Project
+4) IAM setup for an account you will use to connect to the GCP Pub/Sub - download the credentials json file
 
 ## Initialisation and Authentication 
 When you download your credentials file, there are two options (at the moment) for authenticating to GCP Pub/Sub.  As shown as follows along with initialisation:
@@ -23,9 +24,9 @@ When you download your credentials file, there are two options (at the moment) f
 ### Method 1 - set credentials file as Environment Variable
 You can add an environment setting called 'GOOGLE_APPLICATION_CREDENTIALS' with a path to the credentials *.json file and then the code will automatically pick these up when running.  The initialisation code would look like this:
 ```csharp
-var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+var messenger = new PubSubMessenger(new PubSubConfig()
 {
-    JsonAuthFile = CredentialPath,
+    ProjectId = "MyGcpProjectId,
     ...
 });
 ```
@@ -36,6 +37,7 @@ If you prefer to pass an explicit path to your json credentials file (useful if 
 ```csharp
 var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
 {
+    ProjectId = "MyGcpProjectId",
     JsonAuthFile = CredentialPath,
     ...
 });
