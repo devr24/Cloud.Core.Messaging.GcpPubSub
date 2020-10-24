@@ -1,5 +1,5 @@
 # **Cloud.Core.Messaging.GcpPubSub**  
-[![Build status](https://dev.azure.com/cloudcoreproject/CloudCore/_apis/build/status/Cloud.Core%20Packages/Cloud.Core.Messenger.GcpPubSub_Package)](https://dev.azure.com/cloudcoreproject/CloudCore/_build/latest?definitionId=11) ![Code Coverage](https://cloud1core.blob.core.windows.net/codecoveragebadges/Cloud.Core.Messaging.GcpPubSub-LineCoverage.png) [![Cloud.Core.Messaging.GcpPubSub package in Cloud.Core feed in Azure Artifacts](https://feeds.dev.azure.com/cloudcoreproject/dfc5e3d0-a562-46fe-8070-7901ac8e64a0/_apis/public/Packaging/Feeds/8949198b-5c74-42af-9d30-e8c462acada6/Packages/10bce412-14c4-4eb3-b2fb-8c0def43f9eb/Badge)](https://dev.azure.com/cloudcoreproject/CloudCore/_packaging?_a=package&feed=8949198b-5c74-42af-9d30-e8c462acada6&package=10bce412-14c4-4eb3-b2fb-8c0def43f9eb&preferRelease=true)
+[![Build status](https://dev.azure.com/cloudcoreproject/CloudCore/_apis/build/status/Cloud.Core%20Packages/Cloud.Core.Messenger.GcpPubSub_Package)](https://dev.azure.com/cloudcoreproject/CloudCore/_build/latest?definitionId=11) ![Code Coverage](https://cloud1core.blob.core.windows.net/codecoveragebadges/Cloud.Core.Messaging.GcpPubSub-LineCoverage.png) [![Cloud.Core.Messaging.GcpPubSub package in Cloud.Core feed in Azure Artifacts](https://feeds.dev.azure.com/cloudcoreproject/dfc5e3d0-a562-46fe-8070-7901ac8e64a0/_apis/public/Packaging/Feeds/8949198b-5c74-42af-9d30-e8c462acada6/Packages/b65f3009-b2dc-47a9-ab21-732b5c6e8475/Badge)](https://dev.azure.com/cloudcoreproject/CloudCore/_packaging?_a=package&feed=8949198b-5c74-42af-9d30-e8c462acada6&package=b65f3009-b2dc-47a9-ab21-732b5c6e8475&preferRelease=true)
 
 <div id="description">
 
@@ -156,6 +156,8 @@ If you need access to message properties directly, you can use `ReceiveOneEntity
 IMessenger msn = new PubSubMessenger(config);
             
 var singleEntity = msn.ReceiveOneEntity<TestMessage>();
+// OR you can specify the topic inline using the concrete class:
+var msg = ((PubSubMessenger)msg).ReceiveOne<TestMessage>("AnySubscription");
 
 // Process message...
 var props = singleEntity.Props;
@@ -173,6 +175,8 @@ You can receive a batch of messages in one single synchronous Pull.
 IMessenger msn = new PubSubMessenger(config);
             
 var messages = msn.ReceiveBatch<TestMessage>(500);
+// OR you can specify the topic inline using the concrete class:
+var msgs = ((PubSubMessenger)msg).ReceiveBatch<TestMessage>("AnySubscription", 50);
 
 // Process messages...
 
@@ -273,7 +277,39 @@ await ((PubSubManager)manager).DeleteTopic("MyTopic"); // Only topic.
 await ((PubSubManager)manager).DeleteSubscription("MyTopic_default"); // Only subscription.
 ```
 
-### Entity Manager Authorisation
+### Using Message Filtering
+
+At some point we may only want a subscription to pickup specific messages with a particular attribute.  Here's an example ofsubscription message filtering:
+
+```csharp
+var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+{
+    JsonAuthFile = _fixture.CredentialPath,
+    ProjectId = _fixture.ProjectId
+});
+var manager = messenger.EntityManager as PubSubManager;
+
+// Act
+// Create the filter topic for testing.
+manager.CreateTopic(_fixture.MessageFilterTopic, null, "defaultsub").GetAwaiter().GetResult();
+manager.CreateSubscription(_fixture.MessageFilterTopic, "filteredsub", "attributes:pickme").GetAwaiter().GetResult();
+
+// Send two messages, one that wont be picked up by the filter subscription and the other that
+// will.  The result is two messages to the defaultsub, one to filteredsub
+messenger.Send(_fixture.MessageFilterTopic, "test").GetAwaiter().GetResult();
+messenger.Send(_fixture.MessageFilterTopic, "testfilter", new KeyValuePair<string, object>[]
+{
+    new KeyValuePair<string, object>("pickme", "please") 
+}).GetAwaiter().GetResult();
+
+// Receive from both subscriptions.
+var nonFilteredMessages = messenger.ReceiveBatch<string>("defaultsub", 100).GetAwaiter().GetResult();
+var filteredMessages = messenger.ReceiveBatch<string>("filteredsub", 100).GetAwaiter().GetResult();
+```
+
+Full filtering documtation on GCP Pub/Sub can be found here: [https://cloud.google.com/pubsub/docs/filtering](https://cloud.google.com/pubsub/docs/filtering)
+
+## Entity Manager Authorisation
 To carry out any create or delete entity, GCP PubSub permissions are required.  The following permissions are required:
 
 - Pub/Sub Admin
