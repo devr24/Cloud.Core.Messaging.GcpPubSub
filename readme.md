@@ -51,10 +51,11 @@ The *Cloud.Core* package contains these public interfaces for messaging (chain s
 
 </div>
 
-The *Cloud.Core* package contains these public interfaces for messaging (chain shown below).  This package implements the releavant interfaces for wrapping a Message Bus.  
-The main focus of this package being separate from all the other Google Cloud Platform specific packages is to allow for a layer of abstraction in the calling applications.
+The *Cloud.Core* package contains public interfaces for messaging.  
 
-The interface also allows the implementation to switch to other available messenger types for other cloud offerings, such as Azure Storage Queue, Azure Service Bus and RabbitMQ.
+The main focus of this package being separate from all the other Google Cloud Platform specific packages is to allow for a layer of abstraction in the calling applications, using those messaging interfaces.
+
+Using the interface also allows the implementation to switch to other available messenger types for other cloud offerings, such as Azure Storage Queue, Azure Service Bus and RabbitMQ.
 
 ```csharp
 IReactiveMessenger messenger = new PubSubMessenger(new PubSubJsonAuthConfig());
