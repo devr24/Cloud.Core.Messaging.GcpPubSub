@@ -58,9 +58,9 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
             // Attempt to create if not exists
             ((PubSubManager)pubsub.EntityManager).CreateTopicIfNotExists(topicName).GetAwaiter().GetResult();
-            ((PubSubManager)pubsub.EntityManager).CreateSubscription(topicName, "OtherSub").GetAwaiter().GetResult();
-            ((PubSubManager)pubsub.EntityManager).CreateSubscription(topicName, "OtherSub").GetAwaiter().GetResult(); // called twice for coverage.
-            ((PubSubManager)pubsub.EntityManager).SubscriptionExists("OtherSub").GetAwaiter().GetResult().Should().BeTrue();
+            ((PubSubManager)pubsub.EntityManager).CreateSubscription(topicName, "OtherSub2").GetAwaiter().GetResult();
+            ((PubSubManager)pubsub.EntityManager).CreateSubscription(topicName, "OtherSub2").GetAwaiter().GetResult(); // called twice for coverage.
+            ((PubSubManager)pubsub.EntityManager).SubscriptionExists("OtherSub2").GetAwaiter().GetResult().Should().BeTrue();
 
             // Verify exists
             ((PubSubManager)pubsub.EntityManager).TopicExists(topicName).GetAwaiter().GetResult().Should().BeTrue();
@@ -72,7 +72,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             // Verify does not exist
             ((PubSubManager)pubsub.EntityManager).TopicExists(topicName).GetAwaiter().GetResult().Should().BeFalse();
             ((PubSubManager)pubsub.EntityManager).SubscriptionExists($"{topicName}_default").GetAwaiter().GetResult().Should().BeFalse();
-            ((PubSubManager)pubsub.EntityManager).SubscriptionExists("OtherSub").GetAwaiter().GetResult().Should().BeFalse();
+            ((PubSubManager)pubsub.EntityManager).SubscriptionExists("OtherSub2").GetAwaiter().GetResult().Should().BeFalse();
         }
     }
 }

@@ -218,7 +218,7 @@
                 foreach (var subscription in subs)
                 {
                     // Delete subscriptions associated with the topic.
-                    if (subscription.Topic.EndsWith(entityName))
+                    if (subscription.TopicAsTopicName == new TopicName(_projectId, entityName))
                         await DeleteSubscription(subscription.SubscriptionName.SubscriptionId);
                 }
 
