@@ -13,8 +13,9 @@ Gcp Pub/Sub Topics implementation of the messaging interfaces provided in Cloud.
 You will need the following setup to use this package:
 
 1) Google Cloud Platform (GCP) account
-2) Instance of GCP Pub/Sub
-3) IAM setup for the GCP Pub/Sub and download of credentials json
+2) GCP Project (your Project Id is needed for config)
+3) Instance of GCP Pub/Sub within your Project
+4) IAM setup for an account you will use to connect to the GCP Pub/Sub - download the credentials json file
 
 ## Initialisation and Authentication 
 When you download your credentials file, there are two options (at the moment) for authenticating to GCP Pub/Sub.  As shown as follows along with initialisation:
@@ -23,9 +24,9 @@ When you download your credentials file, there are two options (at the moment) f
 ### Method 1 - set credentials file as Environment Variable
 You can add an environment setting called 'GOOGLE_APPLICATION_CREDENTIALS' with a path to the credentials *.json file and then the code will automatically pick these up when running.  The initialisation code would look like this:
 ```csharp
-var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
+var messenger = new PubSubMessenger(new PubSubConfig()
 {
-    JsonAuthFile = CredentialPath,
+    ProjectId = "MyGcpProjectId,
     ...
 });
 ```
@@ -36,6 +37,7 @@ If you prefer to pass an explicit path to your json credentials file (useful if 
 ```csharp
 var messenger = new PubSubMessenger(new PubSubJsonAuthConfig()
 {
+    ProjectId = "MyGcpProjectId",
     JsonAuthFile = CredentialPath,
     ...
 });
@@ -49,10 +51,11 @@ The *Cloud.Core* package contains these public interfaces for messaging (chain s
 
 </div>
 
-The *Cloud.Core* package contains these public interfaces for messaging (chain shown below).  This package implements the releavant interfaces for wrapping a Message Bus.  
-The main focus of this package being separate from all the other Google Cloud Platform specific packages is to allow for a layer of abstraction in the calling applications.
+The *Cloud.Core* package contains public interfaces for messaging.  
 
-The interface also allows the implementation to switch to other available messenger types for other cloud offerings, such as Azure Storage Queue, Azure Service Bus and RabbitMQ.
+The main focus of this package being separate from all the other Google Cloud Platform specific packages is to allow for a layer of abstraction in the calling applications, using those messaging interfaces.
+
+Using the interface also allows the implementation to switch to other available messenger types for other cloud offerings, such as Azure Storage Queue, Azure Service Bus and RabbitMQ.
 
 ```csharp
 IReactiveMessenger messenger = new PubSubMessenger(new PubSubJsonAuthConfig());
@@ -210,10 +213,10 @@ await msn.Error(message); // move to dead-letter topic
 ```
 
 ### Entity Send/Recieve Authorisation
-To carry out any create or delete entity, GCP PubSub permissions are required.  The following permissions are required:
+To carry out any reading/publishing of messages, the follwoing GCP PubSub permissions are required:
 
 - Pub/Sub Subscriber - for reading messages in a stream
-- Pub/Sub Viewer - for reaching messages one by one
+- Pub/Sub Viewer - for receiving messages one by one
 
 ## Managing Topics
 
@@ -310,7 +313,7 @@ var filteredMessages = messenger.ReceiveBatch<string>("filteredsub", 100).GetAwa
 Full filtering documtation on GCP Pub/Sub can be found here: [https://cloud.google.com/pubsub/docs/filtering](https://cloud.google.com/pubsub/docs/filtering)
 
 ## Entity Manager Authorisation
-To carry out any create or delete entity, GCP PubSub permissions are required.  The following permissions are required:
+To carry out any create or delete entity (topics/subscriptions), the following GCP PubSub permissions are required:
 
 - Pub/Sub Admin
 
