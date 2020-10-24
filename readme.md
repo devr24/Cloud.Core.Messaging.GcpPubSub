@@ -240,7 +240,7 @@ await manager.CreateEntity("MyTopic");
 await manager.CreateEntityIfNotExists("MyTopic"); 
 
 // Create topic, dead-letter topic, subscription named, and deadletter subscription if required. 
-await manager.CreateEntity("MyTopic", "MyTopicDeadletter, "MySubscription", "MySubscriptionDeadletter"); 
+await manager.CreateEntity("MyTopic", "MyTopicDeadletter", "MySubscription", "MySubscriptionDeadletter"); 
 ```
 
 The manager has explicit methds for topic (only) and subscription (only) creation.  Example code:
