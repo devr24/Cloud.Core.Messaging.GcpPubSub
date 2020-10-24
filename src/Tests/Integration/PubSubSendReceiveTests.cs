@@ -58,6 +58,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             Messenger.EntityManager.DeleteEntity(StreamTopicName).GetAwaiter().GetResult();
             Messenger.EntityManager.DeleteEntity(StreamObservableTopicName).GetAwaiter().GetResult();
             Messenger.EntityManager.DeleteEntity(SecondaryTopicName).GetAwaiter().GetResult();
+            Messenger.EntityManager.DeleteEntity(MessageFilterTopic).GetAwaiter().GetResult();
 
             // Clean up dead-letter topics.
             Messenger.EntityManager.DeleteEntity($"{TestTopicName}_deadletter").GetAwaiter().GetResult();
