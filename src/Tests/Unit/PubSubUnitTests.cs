@@ -162,7 +162,22 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             serviceCollection.ContainsService(typeof(NamedInstanceFactory<IReactiveMessenger>)).Should().BeTrue();
             serviceCollection.Clear();
 
+            serviceCollection.AddPubSubSingleton("projectid");
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
+            serviceCollection.Clear();
+
+            serviceCollection.AddPubSubSingleton("projectid", "auth");
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
+            serviceCollection.Clear();
+
             serviceCollection.AddPubSubSingleton(new PubSubConfig { ProjectId = "test" });
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
+            serviceCollection.Clear();
+
+            serviceCollection.AddPubSubSingleton(new PubSubJsonAuthConfig { ProjectId = "test", JsonAuthFile = "test"});
             serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
             serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
             serviceCollection.Clear();
@@ -172,6 +187,13 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
             var resolvedFactory = serviceCollection.BuildServiceProvider().GetService<NamedInstanceFactory<PubSubMessenger>>();
             resolvedFactory["test"].Should().NotBeNull();
+            serviceCollection.Clear();
+
+            serviceCollection.AddPubSubSingletonNamed("test", new PubSubJsonAuthConfig { JsonAuthFile = "test", ProjectId = "test" });
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
+            var resolvedFactory0 = serviceCollection.BuildServiceProvider().GetService<NamedInstanceFactory<PubSubMessenger>>();
+            resolvedFactory0["test"].Should().NotBeNull();
             serviceCollection.Clear();
 
             serviceCollection.AddPubSubSingletonNamed<IMessenger>("key1", new PubSubConfig { ProjectId = "key1" });

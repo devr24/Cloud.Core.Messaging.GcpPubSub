@@ -60,6 +60,7 @@ namespace Microsoft.Extensions.DependencyInjection
         {
             return services.AddPubSubSingletonNamed<T>(null, config);
         }
+
         /// <summary>
         /// Adds the Gcp Pub/Sub singleton.
         /// </summary>
@@ -94,6 +95,36 @@ namespace Microsoft.Extensions.DependencyInjection
         {
             return services.AddPubSubSingletonNamed<PubSubMessenger>(null, config);
         }
+
+        /// <summary>
+        /// Adds the Gcp Pub/Sub singleton using the passed in params to build configuration.
+        /// </summary>
+        /// <param name="services">The service collection to extend.</param>
+        /// <param name="projectId">The Gcp Project Id.</param>
+        /// <param name="receiver">The receiver configuration.</param>
+        /// <param name="sender">The sender configuration.</param>
+        /// <returns>IServiceCollection.</returns>
+        public static IServiceCollection AddPubSubSingleton(this IServiceCollection services, string projectId, ReceiverConfig receiver = null, SenderConfig sender = null)
+        {
+            return services.AddPubSubSingletonNamed<PubSubMessenger>(null, new PubSubConfig { ProjectId = projectId, ReceiverConfig = receiver, Sender = sender });
+        }
+
+        /// <summary>
+        /// Adds the Gcp Pub/Sub singleton using the passed in params to build configuration.
+        /// </summary>
+        /// <param name="services">The service collection to extend.</param>
+        /// <param name="projectId">The Gcp Project Id.</param>
+        /// <param name="jsonAuthFile">The json authentication file.</param>
+        /// <param name="receiver">The receiver configuration.</param>
+        /// <param name="sender">The sender configuration.</param>
+        /// <returns>IServiceCollection.</returns>
+        public static IServiceCollection AddPubSubSingleton(this IServiceCollection services, string projectId, string jsonAuthFile, ReceiverConfig receiver = null, SenderConfig sender = null)
+        {
+            return services.AddPubSubSingletonNamed<PubSubMessenger>(null, new PubSubJsonAuthConfig {
+                ProjectId = projectId, JsonAuthFile = jsonAuthFile, ReceiverConfig = receiver, Sender = sender
+            });
+        }
+
 
         private static IServiceCollection AddNamedInstance<T>(IServiceCollection services, string key, PubSubMessenger instance)
             where T : INamedInstance
