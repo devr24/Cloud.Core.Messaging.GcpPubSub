@@ -149,10 +149,11 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         public void Test_PubSubMessenger_SendMessageBatchWithProps()
         {
             // Arrange
-            List<string> msgs;
+            IEnumerable<string> msgs;
             var batchSize = 40;
             var lorem = Lorem.GetParagraphs(50);
             var batchCounter = 0;
+            int msgCount;
 
             // Act
             _fixture.Messenger.SendBatch(lorem, new KeyValuePair<string, object>[]
@@ -165,14 +166,15 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             {
                 // Receive a batch of messages.
                 msgs = _fixture.Messenger.ReceiveBatch<string>(batchSize).GetAwaiter().GetResult();
-                
+                msgCount = msgs.Count();
+
                 // Complete multiple messages at once.
                 _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
 
-                if (msgs.Count == batchSize)
+                if (msgCount == batchSize)
                     batchCounter++;
 
-            } while (msgs.Count > 0);
+            } while (msgCount > 0);
             
             // Assert
             batchCounter.Should().BeGreaterThan(0);
@@ -183,10 +185,11 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         public void Test_PubSubMessenger_ReceiveBatch()
         {
             // Arrange
-            List<string> msgs;
+            IEnumerable<string> msgs;
             var batchSize = 40;
             var lorem = Lorem.GetParagraphs(50);
             var batchCounter = 0;
+            int msgCount;
 
             // Act
             _fixture.Messenger.SendBatch(lorem, batchSize).GetAwaiter().GetResult();
@@ -195,15 +198,16 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             {
                 // Receive a batch of messages.
                 msgs = _fixture.Messenger.ReceiveBatch<string>(batchSize).GetAwaiter().GetResult();
+                msgCount = msgs.Count();
 
                 // Complete multiple messages at once.
                 _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
 
                 // Assert
-                if (msgs.Count == batchSize)
+                if (msgCount == batchSize)
                     batchCounter++;
 
-            } while (msgs.Count > 0);
+            } while (msgCount > 0);
 
             // Assert
             batchCounter.Should().BeGreaterThan(0);
@@ -214,9 +218,10 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
         public void Test_PubSubMessenger_ReceiveBatchEntity()
         {
             // Arrange
-            List<IMessageEntity<string>> msgs;
+            IEnumerable<IMessageEntity<string>> msgs;
             var batchSize = 10;
             var lorem = Lorem.GetParagraphs(51);
+            int msgCount;
 
             // Act
             _fixture.Messenger.SendBatch(lorem, batchSize).GetAwaiter().GetResult();
@@ -225,15 +230,16 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             {
                 // Receive a batch of messages.
                 msgs = _fixture.Messenger.ReceiveBatchEntity<string>(batchSize).GetAwaiter().GetResult();
+                msgCount = msgs.Count();
 
                 // Complete multiple messages at once.
                 _fixture.Messenger.CompleteAll(msgs).GetAwaiter().GetResult();
 
                 // Assert
-                if (msgs.Count > 1)
-                    msgs.Count.Should().Be(batchSize);
+                if (msgCount > 1)
+                    msgCount.Should().Be(batchSize);
 
-            } while (msgs.Count > 0);
+            } while (msgCount > 0);
         }
 
         /// <summary>Verify a message can be errored and then picked up from dead-letter topic.</summary>

@@ -209,22 +209,6 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             serviceCollection.Clear();
         }
 
-        /// <summary>Verify the methods that should throw not implemented exceptions.</summary>
-        [Fact]
-        public void Test_PubSubMessenger_NotImplemented()
-        {
-            // Arrange
-            using var pubSub = new PubSubMessenger(new PubSubJsonAuthConfig() {  JsonAuthFile = "test", ProjectId = "test" });
-            
-            // Act/Assert
-            // Messenger methods.
-            Assert.Throws<NotImplementedException>(() => pubSub.Defer(new[] {""}, null).GetAwaiter().GetResult());
-            Assert.Throws<NotImplementedException>(() => pubSub.ReceiveDeferredBatch<string>(new List<long> { 1 }).GetAwaiter().GetResult());
-            Assert.Throws<NotImplementedException>(() => pubSub.ReceiveDeferredBatchEntity<string>(new List<long> { 1 }).GetAwaiter().GetResult());
-
-            pubSub.Dispose();
-        }
-
         /// <summary>Verify a message is abandoned as expected.</summary>
         [Fact]
         public void Test_PubSubMessenger_Abandon()
@@ -241,6 +225,8 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             // Act/Assert
             pubSub.Messages.ContainsKey(test).Should().BeFalse();
             pubSub.Messages.Count.Should().Be(0);
+
+            pubSub.Dispose(); // done for branch coverage.
         }
 
         /// <summary>Verify a message entity is abandoned as expected.</summary>

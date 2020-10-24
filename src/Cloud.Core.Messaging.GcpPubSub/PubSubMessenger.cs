@@ -252,7 +252,7 @@
         /// <typeparam name="T">Type of object on the entity.</typeparam>
         /// <param name="batchSize">Size of the batch.</param>
         /// <returns>IMessageItem&lt;T&gt;.</returns>
-        public async Task<List<T>> ReceiveBatch<T>(int batchSize) where T : class
+        public async Task<IEnumerable<T>> ReceiveBatch<T>(int batchSize) where T : class
         {
             var results = await ReceiveBatchEntity<T>(batchSize);
             return results.Select(b => b.Body).ToList();
@@ -265,7 +265,7 @@
         /// <param name="batchSize">Size of the batch.</param>
         /// <returns>IMessageEntity&lt;T&gt;.</returns>
         /// <exception cref="InvalidOperationException">ReceiverConfig must be set to read messages.</exception>
-        public async Task<List<IMessageEntity<T>>> ReceiveBatchEntity<T>(int batchSize = 10) where T : class
+        public async Task<IEnumerable<IMessageEntity<T>>> ReceiveBatchEntity<T>(int batchSize = 10) where T : class
         {
             // Ensure config is setup.
             if (Config.ReceiverConfig == null)
@@ -534,46 +534,6 @@
             // Complete the message (completing removes the message from the dictionary), then send on to dead-letter queue.
             await CompleteAll(new[] { msgBody });
             await InternalSendBatch(Config.ReceiverConfig.TopicDeadletterRelativeName, new [] { msgBody }, props.ToArray(), null, 100);
-        }
-
-        /// <summary>
-        /// [NOT IMPLEMENTED]
-        /// Defers a message in the the queue.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="message">The message we want to abandon.</param>
-        /// <param name="propertiesToModify">The message properties to modify on abandon.</param>
-        /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper.</returns>
-        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
-        public Task Defer<T>(T message, KeyValuePair<string, object>[] propertiesToModify) where T : class
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// [NOT IMPLEMENTED]
-        /// Receives a batch of deferred messages of type T.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="identities">The list of identities pertaining to the batch.</param>
-        /// <returns>IMessageItem&lt;T&gt;.</returns>
-        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
-        public Task<List<T>> ReceiveDeferredBatch<T>(IEnumerable<long> identities) where T : class
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// [NOT IMPLEMENTED]
-        /// Receives a batch of deferred messages of type IMessageEntity types.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="identities">The list of identities pertaining to the batch</param>
-        /// <returns>IMessageEntity&lt;T&gt;.</returns>
-        /// <exception cref="NotImplementedException">This method has not been implemented for this provider.</exception>
-        public Task<List<IMessageEntity<T>>> ReceiveDeferredBatchEntity<T>(IEnumerable<long> identities) where T : class
-        {
-            throw new NotImplementedException();
         }
 
         /// <summary>Creates topics and subscriptions if they do not exist.</summary>
