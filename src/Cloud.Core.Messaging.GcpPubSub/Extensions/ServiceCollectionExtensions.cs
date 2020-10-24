@@ -125,6 +125,36 @@ namespace Microsoft.Extensions.DependencyInjection
             });
         }
 
+        /// <summary>
+        /// Adds the Gcp Pub/Sub singleton using the passed in params to build configuration.
+        /// </summary>
+        /// <param name="services">The service collection to extend.</param>
+        /// <param name="projectId">The Gcp Project Id.</param>
+        /// <param name="sender">The sender configuration.</param>
+        /// <returns>IServiceCollection.</returns>
+        public static IServiceCollection AddPubSubSingleton(this IServiceCollection services, string projectId, SenderConfig sender)
+        {
+            return services.AddPubSubSingletonNamed<PubSubMessenger>(null, new PubSubConfig { ProjectId = projectId, Sender = sender });
+        }
+
+        /// <summary>
+        /// Adds the Gcp Pub/Sub singleton using the passed in params to build configuration.
+        /// </summary>
+        /// <param name="services">The service collection to extend.</param>
+        /// <param name="projectId">The Gcp Project Id.</param>
+        /// <param name="jsonAuthFile">The json authentication file.</param>
+        /// <param name="sender">The sender configuration.</param>
+        /// <returns>IServiceCollection.</returns>
+        public static IServiceCollection AddPubSubSingleton(this IServiceCollection services, string projectId, string jsonAuthFile, SenderConfig sender)
+        {
+            return services.AddPubSubSingletonNamed<PubSubMessenger>(null, new PubSubJsonAuthConfig
+            {
+                ProjectId = projectId,
+                JsonAuthFile = jsonAuthFile,
+                Sender = sender
+            });
+        }
+
 
         private static IServiceCollection AddNamedInstance<T>(IServiceCollection services, string key, PubSubMessenger instance)
             where T : INamedInstance

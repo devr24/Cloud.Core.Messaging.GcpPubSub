@@ -172,6 +172,16 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Unit
             serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
             serviceCollection.Clear();
 
+            serviceCollection.AddPubSubSingleton("projectid", new SenderConfig { EntityName = "test" });
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
+            serviceCollection.Clear();
+
+            serviceCollection.AddPubSubSingleton("projectid", "auth", new SenderConfig { EntityName = "test" });
+            serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
+            serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
+            serviceCollection.Clear();
+
             serviceCollection.AddPubSubSingleton(new PubSubConfig { ProjectId = "test" });
             serviceCollection.ContainsService(typeof(PubSubMessenger)).Should().BeTrue();
             serviceCollection.ContainsService(typeof(NamedInstanceFactory<PubSubMessenger>)).Should().BeTrue();
