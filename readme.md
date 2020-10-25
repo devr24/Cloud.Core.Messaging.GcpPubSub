@@ -422,6 +422,27 @@ messenger.Dispose();
 A threshold will be added to this package to ensure the test coverage is above 80% for branches, functions and lines.  If it's not above the required threshold 
 (threshold that will be implemented on ALL of the core repositories to gurantee a satisfactory level of testing), then the build will fail.
 
+## Performance Testing
+Dotnet Benchmark is used to test the main methods of the package.  Here's the results:
+
+```
+BenchmarkDotNet=v0.12.1, OS=Windows 10.0.18363.1139 (1909/November2018Update/19H2)
+Intel Core i7-9750H CPU 2.60GHz, 1 CPU, 12 logical and 6 physical cores
+.NET Core SDK=5.0.100-preview.2.20176.6
+  [Host]     : .NET Core 3.1.8 (CoreCLR 4.700.20.41105, CoreFX 4.700.20.41903), X64 RyuJIT
+  DefaultJob : .NET Core 3.1.8 (CoreCLR 4.700.20.41105, CoreFX 4.700.20.41903), X64 RyuJIT
+```
+
+|Method	|Mean	|Error	|StdDev	|Median	|Gen 0	|Gen 1|	Gen 2	|Allocated
+|--|--|--|--|--|--|--|--|--|
+|Test_Performance_CreateTopic	|619.20 ms|	71.143 ms	|208.651 ms	|655.76 ms	|-	|-	|-	|11.07 KB
+|Test_Performance_CreateSubscription	|281.30 ms	|10.292 ms	|28.859 ms	|296.26 ms	|-	|-|	-	|11.91 KB
+|Test_Performance_CreateTopicIfNotExists_DoesNotExist|	650.06 ms	|71.297 ms	|210.220 ms	|631.56 ms|	-|	-|	-|	10.88 KB
+|Test_Performance_CreateTopicIfNotExists_DoesExist	|611.31 ms	|72.963 ms	|215.134 ms	|641.13 ms	|-	|-	|-	|11.04 KB
+|Test_Performance_Send100InvidualMessages|	3,568.60 ms	|71.129 ms	|198.279 ms	|3,551.70 ms	|-	|-	|-	|1090.77 KB
+|Test_Performance_Send1000MessagesInBatchesOf100|	94.25 ms	|1.855 ms	|3.483 ms	|93.85 ms	|333.3333	|-	|-	|2709.35 KB
+
+
 ## Compatibility
 This package has has been written in .net Standard 2.1, therefore be only referenced from a .net Core application. The advantage of utilising from a .net Core application, 
 is that it can be deployed and run on a number of host operating systems, such as Windows, Linux or OSX.  Unlike referencing from the a .net Framework application, which can only run on Windows (or Linux using Mono).

@@ -138,11 +138,39 @@
         /// <param name="topicName">Name of the topic.</param>
         /// <param name="messages">The messages.</param>
         /// <param name="properties">The properties.</param>
+        /// <param name="batchSize">Size of the batch.</param>
         /// <returns>System.Threading.Tasks.Task.</returns>
-        public async Task SendBatch<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null) where T : class
+        public async Task SendBatch<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null, int batchSize = 1000) where T : class
         {
             // Calls internal send method directly, so topic name can be passed along.
-            await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), messages, properties, null, 1);
+            await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), messages, properties, null, batchSize);
+        }
+
+        /// <summary>
+        /// Sends the list of messages to the specified topic name.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="topicName">Name of the topic.</param>
+        /// <param name="messages">The messages.</param>
+        /// <returns>System.Threading.Tasks.Task.</returns>
+        public async Task SendBatch<T>(string topicName, IEnumerable<T> messages) where T : class
+        {
+            // Calls internal send method directly, so topic name can be passed along.
+            await SendBatch(topicName, messages, null);
+        }
+
+        /// <summary>
+        /// Sends the list of messages to the specified topic name in batches (size specified).
+        /// </summary>
+        /// <typeparam name="T">Type of message to send</typeparam>
+        /// <param name="topicName">Name of the topic to send to.</param>
+        /// <param name="messages">The messages to send.</param>
+        /// <param name="batchSize">Size of the batch.</param>
+        /// <returns>System.Threading.Tasks.Task.</returns>
+        public async Task SendBatch<T>(string topicName, IEnumerable<T> messages, int batchSize) where T : class
+        {
+            // Calls internal send method directly, so topic name can be passed along.
+            await SendBatch(topicName, messages, null, batchSize);
         }
 
         /// <summary>
@@ -164,7 +192,7 @@
         /// <param name="messages">IEnumerable of messages to send.</param>
         /// <param name="batchSize">Size of the message batch to send.</param>
         /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper.</returns>
-        public async Task SendBatch<T>(IEnumerable<T> messages, int batchSize = 10) where T : class
+        public async Task SendBatch<T>(IEnumerable<T> messages, int batchSize = 100) where T : class
         {
             await SendBatch(messages, p => null, batchSize);
         }
@@ -542,7 +570,7 @@
             // Build receiverConfig.
             if (!_createdReceiverTopic && Config.ReceiverConfig != null && Config.ReceiverConfig.CreateEntityIfNotExists)
             {
-                ((PubSubManager)EntityManager).CreateTopic(Config.ReceiverConfig.EntityName, Config.ReceiverConfig.EntityDeadLetterName,
+                ((PubSubManager)EntityManager).CreateTopicDefaults(Config.ReceiverConfig.EntityName, Config.ReceiverConfig.EntityDeadLetterName,
                     Config.ReceiverConfig.EntitySubscriptionName, Config.ReceiverConfig.EntityDeadLetterSubscriptionName, Config.ReceiverConfig.EntityFilter?.Value).GetAwaiter().GetResult();
                 _createdReceiverTopic = true;
             }
@@ -550,7 +578,7 @@
             // Build sender.
             if (!_createdSenderTopic && Config.Sender != null && Config.Sender.CreateEntityIfNotExists)
             {
-                ((PubSubManager)EntityManager).CreateTopic(Config.Sender.EntityName, Config.Sender.EntityDeadLetterName).GetAwaiter().GetResult();
+                ((PubSubManager)EntityManager).CreateTopicDefaults(Config.Sender.EntityName, Config.Sender.EntityDeadLetterName).GetAwaiter().GetResult();
                 _createdSenderTopic = true;
             }
         }

@@ -38,7 +38,7 @@
         /// <param name="subscriptionName">Name of the subscription.</param>
         /// <param name="deadletterSubscriptionName">Name of the dead-letter subscription.</param>
         /// <param name="filter">The filter for the subscription.</param>
-        public async Task CreateTopic(string topicName, string deadletterName, string subscriptionName = null, string deadletterSubscriptionName = null, string filter = null)
+        public async Task CreateTopicDefaults(string topicName, string deadletterName = null, string subscriptionName = null, string deadletterSubscriptionName = null, string filter = null)
         {
             // Create the topic and the dead-letter equivalent.
             if (!deadletterName.IsNullOrEmpty())
@@ -226,7 +226,7 @@
                 string deadletterSubscription = createDefaults ? defaultConfig.EntityDeadLetterSubscriptionName : null;
 
                 // Create...
-                await CreateTopic(topicName, deadletterName, subscription, deadletterSubscription);
+                await CreateTopicDefaults(topicName, deadletterName, subscription, deadletterSubscription);
 
                 return true;
             }
@@ -256,7 +256,7 @@
                 }
 
                 // Create topic plus subscriptions if set.
-                await CreateTopic(psConfig.EntityName, psConfig.EntityDeadLetterName, subName, deadletterSubName, filter);
+                await CreateTopicDefaults(psConfig.EntityName, psConfig.EntityDeadLetterName, subName, deadletterSubName, filter);
             }
         }
 

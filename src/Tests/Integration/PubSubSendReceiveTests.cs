@@ -431,7 +431,9 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
             _fixture.Messenger.Send(lorem1).GetAwaiter().GetResult();
             ((PubSubMessenger)_fixture.Messenger).Send(_fixture.SecondaryTopicName, lorem2).GetAwaiter().GetResult();
             ((PubSubMessenger)_fixture.Messenger).Send(_fixture.SecondaryTopicName, lorem2, new []{  new KeyValuePair<string, object>("prop1","prop1val")  }).GetAwaiter().GetResult(); // used for branch coverage
-            ((PubSubMessenger)_fixture.Messenger).SendBatch(_fixture.SecondaryTopicName, new [] { lorem2 }, new[] { new KeyValuePair<string, object>("prop1", "prop1val") }).GetAwaiter().GetResult(); // used for branch coverage
+            ((PubSubMessenger)_fixture.Messenger).SendBatch(_fixture.SecondaryTopicName, new [] { lorem2 }, new[] { new KeyValuePair<string, object>("prop1", "prop1val") }, 10).GetAwaiter().GetResult(); // used for branch coverage
+            ((PubSubMessenger)_fixture.Messenger).SendBatch(_fixture.SecondaryTopicName, new[] { lorem2 }, 10).GetAwaiter().GetResult(); // used for branch coverage
+            ((PubSubMessenger)_fixture.Messenger).SendBatch(_fixture.SecondaryTopicName, new[] { lorem2 }).GetAwaiter().GetResult(); // used for branch coverage
 
             // Read from topic 1
             var msg1 = _fixture.Messenger.ReceiveOne<string>();
@@ -464,7 +466,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
             // Act
             // Create the filter topic for testing.
-            manager.CreateTopic(_fixture.MessageFilterTopic, null, "defaultsub").GetAwaiter().GetResult();
+            manager.CreateTopicDefaults(_fixture.MessageFilterTopic, null, "defaultsub").GetAwaiter().GetResult();
             manager.CreateSubscription(_fixture.MessageFilterTopic, "filteredsub", "attributes:pickme").GetAwaiter().GetResult();
 
             // Send two messages, one that wont be picked up by the filter subscription and the other that
