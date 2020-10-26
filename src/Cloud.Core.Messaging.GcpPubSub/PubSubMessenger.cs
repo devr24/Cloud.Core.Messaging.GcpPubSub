@@ -132,6 +132,18 @@
         }
 
         /// <summary>
+        /// Send a typed message as PubSub message content to the sender topic.
+        /// </summary>
+        /// <typeparam name="T">The type of the message that we are sending.</typeparam>
+        /// <param name="message">The message body that we are sending.</param>
+        /// <param name="properties">Any additional message properties to add.</param>
+        /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper</returns>
+        public async Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) where T : class
+        {
+            await SendBatch(new List<T> { message }, p => properties, 1);
+        }
+
+        /// <summary>
         /// Sends the list of messages (with properties) to the specified topic name.
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -140,7 +152,7 @@
         /// <param name="properties">The properties.</param>
         /// <param name="batchSize">Size of the batch.</param>
         /// <returns>System.Threading.Tasks.Task.</returns>
-        public async Task SendBatch<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties = null, int batchSize = 1000) where T : class
+        public async Task SendBatch<T>(string topicName, IEnumerable<T> messages, KeyValuePair<string, object>[] properties, int batchSize = 1000) where T : class
         {
             // Calls internal send method directly, so topic name can be passed along.
             await InternalSendBatch(new TopicName(Config.ProjectId, topicName).ToString(), messages, properties, null, batchSize);
@@ -171,18 +183,6 @@
         {
             // Calls internal send method directly, so topic name can be passed along.
             await SendBatch(topicName, messages, null, batchSize);
-        }
-
-        /// <summary>
-        /// Send a typed message as PubSub message content to the sender topic.
-        /// </summary>
-        /// <typeparam name="T">The type of the message that we are sending.</typeparam>
-        /// <param name="message">The message body that we are sending.</param>
-        /// <param name="properties">Any additional message properties to add.</param>
-        /// <returns>The async <see cref="T:System.Threading.Tasks.Task" /> wrapper</returns>
-        public async Task Send<T>(T message, KeyValuePair<string, object>[] properties = null) where T : class
-        {
-            await SendBatch(new List<T> { message }, p => properties, 1);
         }
 
         /// <summary>
