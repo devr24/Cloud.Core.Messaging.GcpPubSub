@@ -26,7 +26,7 @@ You can add an environment setting called 'GOOGLE_APPLICATION_CREDENTIALS' with 
 ```csharp
 var messenger = new PubSubMessenger(new PubSubConfig()
 {
-    ProjectId = "MyGcpProjectId,
+    ProjectId = "MyGcpProjectId",
     ...
 });
 ```
