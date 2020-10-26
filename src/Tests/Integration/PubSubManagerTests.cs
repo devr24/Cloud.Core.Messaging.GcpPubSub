@@ -67,7 +67,8 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
         /// <summary>
         /// Verify topics can be managed appropriately using the entity manager.
-        /// Note: This test really needs broken up into individual tests but for time's sake I've kept in one for now.
+        /// Note: This test really needs broken up into individual tests but for time's sake I've kept in one for now.  Also, I've called
+        /// methods twice as an easy way to hit branch coverage.  Again, this can be broken out into individual tests properly.
         /// </summary>
         [Fact]
         public void Test_PubSubManager_CreateEntity()
@@ -103,6 +104,7 @@ namespace Cloud.Core.Messaging.GcpPubSub.Tests.Integration
 
             // Attempt to create if not exists
             ((PubSubManager)pubsub.EntityManager).CreateTopicIfNotExists(topicName).GetAwaiter().GetResult();
+            ((PubSubManager)pubsub.EntityManager).CreateTopicIfNotExists(topicName).GetAwaiter().GetResult(); // called twice for branch coverage.
             ((PubSubManager)pubsub.EntityManager).CreateSubscription(topicName, "OtherSub2").GetAwaiter().GetResult();
             ((PubSubManager)pubsub.EntityManager).CreateSubscription(topicName, "OtherSub2").GetAwaiter().GetResult(); // called twice for coverage.
             ((PubSubManager)pubsub.EntityManager).SubscriptionExists("OtherSub2").GetAwaiter().GetResult().Should().BeTrue();
