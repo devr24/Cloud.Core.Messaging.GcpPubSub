@@ -435,13 +435,16 @@ Intel Core i7-9750H CPU 2.60GHz, 1 CPU, 12 logical and 6 physical cores
 
 |Method	|Mean	|Error	|StdDev	|Median	|Gen 0	|Gen 1|	Gen 2	|Allocated
 |--|--|--|--|--|--|--|--|--|
-|Test_Performance_CreateTopic	|619.20 ms|	71.143 ms	|208.651 ms	|655.76 ms	|-	|-	|-	|11.07 KB
-|Test_Performance_CreateSubscription	|281.30 ms	|10.292 ms	|28.859 ms	|296.26 ms	|-	|-|	-	|11.91 KB
-|Test_Performance_CreateTopicIfNotExists_DoesNotExist|	650.06 ms	|71.297 ms	|210.220 ms	|631.56 ms|	-|	-|	-|	10.88 KB
-|Test_Performance_CreateTopicIfNotExists_DoesExist	|611.31 ms	|72.963 ms	|215.134 ms	|641.13 ms	|-	|-	|-	|11.04 KB
-|Test_Performance_Send100InvidualMessages|	3,568.60 ms	|71.129 ms	|198.279 ms	|3,551.70 ms	|-	|-	|-	|1090.77 KB
-|Test_Performance_Send1000MessagesInBatchesOf100|	94.25 ms	|1.855 ms	|3.483 ms	|93.85 ms	|333.3333	|-	|-	|2709.35 KB
-
+|`Test_Performance_CreateTopic`	|611.44 ms	|66.321 ms	|195.548 ms	|658.37 ms	|-	|-	|-	|11.07 KB
+|`Test_Performance_CreateSubscription`	|285.93 ms	|9.908 ms	|28.107 ms	|300.57 ms	|-	|-	|-	|11.91 KB
+|`Test_Performance_CreateTopicIfNotExists_DoesNotExist`	|309.19 ms	|20.336 ms	|53.573 ms	|301.87 ms	|-	|-	|-	|10.94 KB
+|`Test_Performance_CreateTopicIfNotExists_DoesExist`	|405.88 ms	|52.003 ms	|152.517 ms	|330.88 ms	|-	|-	|-	|10.34 KB
+|`Test_Performance_Send100InvidualMessages`	|3,153.24 ms	|62.550 ms	|178.457 ms	|3,123.54 ms	|-	|-	|-	|1089.52 KB
+|`Test_Performance_Send1InvidualMessage`	|29.82 ms	|0.582 ms	|1.326 ms	|29.42 ms	|-	|-	|-	|10.9 KB
+|`Test_Performance_Send1000MessagesInBatchesOf100`	|89.48 ms	|1.750 ms	|2.083 ms	|89.29 ms	|333.3333	|-	|-	|2716.8 KB
+|`Test_Performance_Receive1000MessagesInBatch`	|5,124.39 ms	|1,027.174 ms	|3,028.645 ms	|5,042.23 ms	|-	|-	|-	|4222.4 KB
+|`Test_Performance_Receive100MessagesIndividually`	|2,807.31 ms	|55.986 ms	|141.484 ms	|2,744.40 ms	|-	|-	|-	|1269.53 KB
+|`Test_Performance_Receive1Messages`	|25.41 ms	|1.168 ms	|2.974 ms	|24.88 ms	|-	|-	|-	|12.76 KB
 
 ## Compatibility
 This package has has been written in .net Standard 2.1, therefore be only referenced from a .net Core application. The advantage of utilising from a .net Core application, 
